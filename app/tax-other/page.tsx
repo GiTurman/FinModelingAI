@@ -33,6 +33,7 @@ export default function TaxOtherPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="number" step={0.01}
+                    inputMode="decimal"
                     value={taxRates[t.key] * 100}
                     onChange={e => {
                       const val = e.target.value === '' ? 0 : Number(e.target.value)
@@ -46,7 +47,7 @@ export default function TaxOtherPage() {
             ))}
           </div>
           <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-[10px] text-slate-400 leading-relaxed">
-            * საქართველოში მოქმედებს "ესტონური მოდელი" — მოგების გადასახადი (15%) იხდება მხოლოდ დივიდენდის განაწილებისას.
+            * საქართველოში მოქმედებს &quot;ესტონური მოდელი&quot; — მოგების გადასახადი (15%) იხდება მხოლოდ დივიდენდის განაწილებისას.
           </div>
         </div>
 
@@ -68,6 +69,7 @@ export default function TaxOtherPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={ops[o.key]}
                     onChange={e => {
                       const val = e.target.value === '' ? 0 : Number(e.target.value)
@@ -94,6 +96,7 @@ export default function TaxOtherPage() {
                 <span className="text-xs text-slate-500">{fx.label}</span>
                 <input
                   type="number" step={0.001}
+                  inputMode="decimal"
                   value={ops.fxRates[fx.key]}
                   onChange={e => {
                     const val = e.target.value === '' ? 0 : Number(e.target.value)

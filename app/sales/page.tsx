@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { SalesItem } from '@/types/model'
+import { TimePeriod } from '@/lib/time'
 import { fmtGEL, sumArr } from '@/lib/calculations'
 import { Plus, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import Link from 'next/link'
@@ -12,6 +13,7 @@ const MONTHS = 60
 function newItem(): Omit<SalesItem, 'id'> {
   return {
     name: 'New Product',
+    category: 'General',
     unitPrice: 100,
     monthlyUnits: Array(MONTHS).fill(0),
     vatIncluded: true,
@@ -28,7 +30,7 @@ export default function SalesPage() {
   const toggleMonthly = (id: string) => setShowMonthly(showMonthly === id ? null : id)
 
   const updateUnits = (id: string, monthIdx: number, val: number) => {
-    const item = salesItems.find((i) => i.id === id)
+    const item = salesItems.find((i: SalesItem) => i.id === id)
     if (!item) return
     const units = [...item.monthlyUnits]
     units[monthIdx] = val
@@ -79,7 +81,7 @@ export default function SalesPage() {
       )}
 
       <div className="space-y-3">
-        {salesItems.map((item) => {
+        {salesItems.map((item: SalesItem) => {
           const totalRev = sumArr(item.monthlyUnits) * item.unitPrice
           const totalUnits = sumArr(item.monthlyUnits)
           const isExp = expanded === item.id
@@ -184,14 +186,14 @@ export default function SalesPage() {
                         <table className="text-xs font-mono">
                           <thead>
                             <tr>
-                              {timeline.map((c) => (
+                              {timeline.map((c: TimePeriod) => (
                                 <th key={c.index} className="px-1.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 font-normal whitespace-nowrap">{c.label}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             <tr>
-                              {timeline.map((c) => (
+                              {timeline.map((c: TimePeriod) => (
                                 <td key={c.index} className="px-0.5 py-0.5">
                                   <input
                                     type="number" min={0}
@@ -237,7 +239,7 @@ export default function SalesPage() {
         <div className="bg-slate-800 text-white rounded-xl p-4 flex items-center justify-between">
           <span className="font-semibold">Total Revenue (60M, incl. VAT)</span>
           <span className="font-mono font-bold text-xl">
-            {fmtGEL(sumArr(salesItems.map((item) => sumArr(item.monthlyUnits) * item.unitPrice)), true)}
+            {fmtGEL(sumArr(salesItems.map((item: SalesItem) => sumArr(item.monthlyUnits) * item.unitPrice)), true)}
           </span>
         </div>
       )}

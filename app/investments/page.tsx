@@ -1,139 +1,193 @@
-'use client'
 // app/investments/page.tsx
+'use client'
+import React, { useState } from 'react'
 import { useModelStore } from '@/store/modelStore'
-import { InvestmentItem } from '@/types/model'
-import { fmtGEL, sumArr } from '@/lib/calculations'
-import { Plus, Trash2, Landmark, Wallet, Coins } from 'lucide-react'
-
-function newItem(type: InvestmentItem['type']): Omit<InvestmentItem, 'id'> {
-  return {
-    name: `New ${type}`,
-    type,
-    amount: 50000,
-    monthIndex: 0,
-    interestRate: type === 'Loan' ? 12 : 0,
-    termMonths: type === 'Loan' ? 24 : 0,
-  }
-}
+import { InvestmentItem, DividendDeclaration } from '@/types/model'
+import { fmtGEL } from '@/lib/calculations'
+import { generateTimeline } from '@/lib/time'
+import { Plus, Trash2, Info } from 'lucide-react'
 
 export default function InvestmentsPage() {
-  const { investments, addInvestment, updateInvestment, removeInvestment, getTimeline } = useModelStore()
-  const timeline = getTimeline()
+  const store = useModelStore()
+  const {
+    investments, addInvestment, updateInvestment, removeInvestment,
+    dividendDeclarations, addDividendDeclaration, removeDividendDeclaration, updateDividendDeclaration,
+    ops, taxRates
+  } = store
 
-  const totalEquity = sumArr(investments.filter(i => i.type === 'Equity').map(i => i.amount))
-  const totalLoans = sumArr(investments.filter(i => i.type === 'Loan').map(i => i.amount))
-  const totalGrants = sumArr(investments.filter(i => i.type === 'Grant').map(i => i.amount))
+  const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
+
+  function newInvestment(): Omit<InvestmentItem, 'id'> {
+    return {
+      name: 'New Investment',
+      type: 'Equity',
+      amount: 50000,
+      monthIndex: 0,
+      interestRate: ops.defaultLoanRate,
+      termMonths: 60,
+    }
+  }
+
+  const handleAddInvestment = () => {
+    addInvestment(newInvestment())
+  }
+
+  function newDividend(year: number): Omit<DividendDeclaration, 'id'> {
+    return {
+      year,
+      amount: 10000,
+      description: `Dividend for Year ${year}`
+    }
+  }
+
+  const handleAddDividend = (year: number) => {
+    // Prevent adding duplicate years
+    if (dividendDeclarations.some((d: DividendDeclaration) => d.year === year)) return
+    addDividendDeclaration(newDividend(year))
+  }
 
   return (
-    <div className="page-in space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Investments & Funding</h1>
-          <p className="text-xs text-slate-400 mt-1">კაპიტალი, სესხები და გრანტები</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => addInvestment(newItem('Equity'))} className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold"><Plus size={14}/> Equity</button>
-          <button onClick={() => addInvestment(newItem('Loan'))} className="flex items-center gap-1.5 bg-purple-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold"><Plus size={14}/> Loan</button>
-          <button onClick={() => addInvestment(newItem('Grant'))} className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold"><Plus size={14}/> Grant</button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Total Equity', val: totalEquity, icon: Wallet, color: 'text-blue-600', bg: 'bg-blue-100' },
-          { label: 'Total Loans', val: totalLoans, icon: Landmark, color: 'text-purple-600', bg: 'bg-purple-100' },
-          { label: 'Total Grants', val: totalGrants, icon: Coins, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-        ].map(s => (
-          <div key={s.label} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 flex items-center gap-4">
-            <div className={`w-10 h-10 ${s.bg} dark:bg-opacity-20 rounded-xl flex items-center justify-center ${s.color}`}>
-              <s.icon size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{s.label}</p>
-              <p className="text-lg font-bold font-mono text-slate-800 dark:text-white">{fmtGEL(s.val, true)}</p>
-            </div>
+    <div className="p-6 bg-slate-50 min-h-full">
+      <div className="max-w-7xl mx-auto">
+        {/* Investments Section */}
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Financing & Investments</h1>
+            <p className="text-sm text-slate-500">
+              Define equity, grants, and loans to fund the business.
+            </p>
           </div>
-        ))}
-      </div>
+          <button onClick={handleAddInvestment} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <Plus size={16} />
+            {store.language === 'ka' ? 'დაფინანსების დამატება' : 'Add Financing'}
+          </button>
+        </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
-        <table className="fm-table">
-          <thead>
-            <tr>
-              <th className="text-left">Funding Source</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Month</th>
-              <th>Rate %</th>
-              <th>Term (Mo)</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {investments.map((item) => (
-              <tr key={item.id}>
-                <td className="text-left">
-                  <input value={item.name} onChange={e => updateInvestment(item.id, { name: e.target.value })} className="bg-transparent outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 w-full" />
-                </td>
-                <td>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    item.type === 'Equity' ? 'bg-blue-100 text-blue-700' :
-                    item.type === 'Loan' ? 'bg-purple-100 text-purple-700' :
-                    'bg-emerald-100 text-emerald-700'
-                  }`}>{item.type}</span>
-                </td>
-                <td className="input-cell">
-                  <input
-                    type="number" value={item.amount}
-                    inputMode="decimal"
-                    onChange={e => updateInvestment(item.id, { amount: Number(e.target.value) })}
-                    onFocus={(e) => e.target.select()}
-                    className="bg-transparent text-right outline-none w-24 font-mono focus:ring-1 ring-blue-500 rounded"
-                  />
-                </td>
-                <td>
-                  <select value={item.monthIndex} onChange={e => updateInvestment(item.id, { monthIndex: Number(e.target.value) })} className="bg-transparent outline-none text-xs">
-                    {timeline.map(c => <option key={c.index} value={c.index}>{c.label}</option>)}
-                  </select>
-                </td>
-                <td className="input-cell">
-                  {item.type === 'Loan' ? (
-                    <input
-                      type="number" value={item.interestRate}
-                      inputMode="decimal"
-                      onChange={e => updateInvestment(item.id, { interestRate: Number(e.target.value) })}
-                      onFocus={(e) => e.target.select()}
-                      className="bg-transparent text-right outline-none w-12 font-mono focus:ring-1 ring-blue-500 rounded"
-                    />
-                  ) : '-'}
-                </td>
-                <td className="input-cell">
-                  {item.type === 'Loan' ? (
-                    <input
-                      type="number" value={item.termMonths}
-                      inputMode="numeric"
-                      onChange={e => updateInvestment(item.id, { termMonths: Number(e.target.value) })}
-                      onFocus={(e) => e.target.select()}
-                      className="bg-transparent text-right outline-none w-12 font-mono focus:ring-1 ring-blue-500 rounded"
-                    />
-                  ) : '-'}
-                </td>
-                <td>
-                  <button onClick={() => removeInvestment(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {investments.filter(i => i.type === 'Loan').length > 0 && (
-        <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-700">
-          <p className="text-xs text-purple-700 dark:text-purple-300">
-            <strong>შენიშვნა:</strong> სესხის პროცენტის და ძირითადი თანხის გადახდა იწყება მიღების მომდევნო თვიდან. გათვლილია ანუიტეტური გადახდის მეთოდით.
-          </p>
+      {investments.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-dashed border-slate-300 mb-8">
+          <p className="text-slate-400 text-sm mb-4">დაფინანსება არ არის დამატებული</p>
+          <button onClick={handleAddInvestment} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+            <Plus size={15} /> {store.language === 'ka' ? 'პირველი დაფინანსების დამატება' : 'Add First Financing'}
+          </button>
         </div>
       )}
+
+      {investments.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-8">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="text-left font-semibold p-3">Name</th>
+                <th className="text-left font-semibold p-3">Type</th>
+                <th className="text-right font-semibold p-3">Amount (₾)</th>
+                <th className="text-left font-semibold p-3">Drawdown Month</th>
+                <th className="text-right font-semibold p-3">Interest Rate (%)</th>
+                <th className="text-right font-semibold p-3">Term (Months)</th>
+                <th className="w-12"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {investments.map((item: InvestmentItem) => (
+                <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50">
+                  <td className="p-3 input-cell">
+                    <input type="text" value={item.name} onChange={(e) => updateInvestment(item.id, { name: e.target.value })} className="bg-transparent outline-none w-full font-medium text-slate-800" />
+                  </td>
+                  <td className="p-3 input-cell">
+                    <select value={item.type} onChange={(e) => updateInvestment(item.id, { type: e.target.value as InvestmentItem['type'] })} className="bg-transparent outline-none w-full">
+                      <option value="Equity">Equity</option>
+                      <option value="Loan">Loan</option>
+                      <option value="Grant">Grant</option>
+                    </select>
+                  </td>
+                  <td className="p-3 input-cell">
+                    <input type="number" inputMode="decimal" value={item.amount} onChange={(e) => updateInvestment(item.id, { amount: Number(e.target.value) })} onFocus={(e) => e.target.select()} className="bg-transparent text-right outline-none w-24 font-mono" />
+                  </td>
+                  <td className="p-3 input-cell">
+                    <select value={item.monthIndex} onChange={(e) => updateInvestment(item.id, { monthIndex: Number(e.target.value) })} className="bg-transparent outline-none w-full">
+                      {timeline.map(t => <option key={t.index} value={t.index}>{t.label}</option>)}
+                    </select>
+                  </td>
+                  <td className="p-3 input-cell">
+                    {item.type === 'Loan' && <input type="number" inputMode="decimal" value={item.interestRate} onChange={(e) => updateInvestment(item.id, { interestRate: Number(e.target.value) })} onFocus={(e) => e.target.select()} className="bg-transparent text-right outline-none w-20 font-mono" />}
+                  </td>
+                  <td className="p-3 input-cell">
+                    {item.type === 'Loan' && <input type="number" inputMode="numeric" value={item.termMonths} onChange={(e) => updateInvestment(item.id, { termMonths: Number(e.target.value) })} onFocus={(e) => e.target.select()} className="bg-transparent text-right outline-none w-20 font-mono" />}
+                  </td>
+                  <td className="text-center p-3">
+                    <button onClick={() => removeInvestment(item.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+        {/* Dividend Section */}
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Dividend Declarations (Georgian CIT Model)</h1>
+            <div className="mt-2 flex items-start gap-2 text-sm text-slate-600 bg-slate-100 p-3 rounded-md border border-slate-200">
+              <Info size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+              <p>Georgia uses the &quot;Estonian Model&quot; for Corporate Income Tax (CIT). Tax is not paid on profits as they are earned. Instead, a {taxRates.corporateTaxRate * 100}% CIT is paid on the gross amount of declared dividends. A further {taxRates.dividendTaxRate * 100}% withholding tax is applied to the net distribution. This section models that cash flow event.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="text-left font-semibold p-3">Model Year</th>
+                <th className="text-right font-semibold p-3">Amount Declared (₾)</th>
+                <th className="text-right font-semibold p-3">CIT ({taxRates.corporateTaxRate * 100}%)</th>
+                <th className="text-right font-semibold p-3">Withholding ({taxRates.dividendTaxRate * 100}%)</th>
+                <th className="text-right font-semibold p-3">Net to Shareholder</th>
+                <th className="w-12"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {dividendDeclarations.sort((a: DividendDeclaration, b: DividendDeclaration) => a.year - b.year).map((item: DividendDeclaration) => {
+                const cit = item.amount * taxRates.corporateTaxRate
+                const netDistribution = item.amount - cit
+                const withholding = netDistribution * taxRates.dividendTaxRate
+                const netToShareholder = netDistribution - withholding
+                return (
+                  <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50">
+                    <td className="p-3 font-medium text-slate-800">Year {item.year}</td>
+                    <td className="p-3 input-cell">
+                      <input type="number" inputMode="decimal" value={item.amount} onChange={(e) => updateDividendDeclaration(item.id, { amount: Number(e.target.value) })} onFocus={(e) => e.target.select()} className="bg-transparent text-right outline-none w-28 font-mono" />
+                    </td>
+                    <td className="p-3 text-right font-mono text-slate-500">{fmtGEL(cit)}</td>
+                    <td className="p-3 text-right font-mono text-slate-500">{fmtGEL(withholding)}</td>
+                    <td className="p-3 text-right font-mono font-semibold text-slate-800">{fmtGEL(netToShareholder)}</td>
+                    <td className="text-center p-3">
+                      <button onClick={() => removeDividendDeclaration(item.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
+            <span className="text-sm text-slate-600">Declare dividend in:</span>
+            {Array.from({ length: store.config.modelLengthMonths / 12 }).map((_, i) => {
+              const year = i + 1
+              const exists = dividendDeclarations.some((d: DividendDeclaration) => d.year === year)
+              return (
+                <button
+                  key={year}
+                  onClick={() => handleAddDividend(year)}
+                  disabled={exists}
+                  className="px-3 py-1 text-xs font-semibold rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  Year {year}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

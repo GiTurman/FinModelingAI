@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes'
 
 export default function Topbar() {
   const { theme, setTheme } = useTheme()
-  const { config, selectedView, setView, scenarios, setActiveScenario, language, setLanguage } = useModelStore()
+  const { config, selectedView, setSelectedView, scenarios, setActiveScenario, language, setLanguage } = useModelStore()
 
   return (
     <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md px-5 flex items-center justify-between z-20">
@@ -28,7 +28,7 @@ export default function Topbar() {
           {(['monthly', 'quarterly', 'annual'] as const).map((v) => (
             <button
               key={v}
-              onClick={() => setView(v)}
+              onClick={() => setSelectedView(v)}
               className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
                 selectedView === v ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
               }`}

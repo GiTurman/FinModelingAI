@@ -3,6 +3,7 @@
 import { useModelStore } from '@/store/modelStore'
 import { fmtGEL } from '@/lib/calculations'
 import { Plus, Trash2, Package, Info } from 'lucide-react'
+import { SalesItem, CogsItem } from '@/types/model'
 
 export default function CogsPage() {
   const { salesItems, cogsItems, addCogsItem, updateCogsItem, removeCogsItem } = useModelStore()
@@ -24,9 +25,9 @@ export default function CogsPage() {
       </div>
 
       <div className="space-y-6">
-        {salesItems.map((product) => {
-          const productCogs = cogsItems.filter(c => c.salesItemId === product.id)
-          const totalUnitCost = productCogs.reduce((sum, c) => sum + c.unitCost, 0)
+        {salesItems.map((product: SalesItem) => {
+          const productCogs = cogsItems.filter((c: CogsItem) => c.salesItemId === product.id)
+          const totalUnitCost = productCogs.reduce((sum: number, c: CogsItem) => sum + c.unitCost, 0)
 
           return (
             <div key={product.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
@@ -51,7 +52,7 @@ export default function CogsPage() {
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
                   {productCogs.length > 0 ? (
-                    productCogs.map((cogs) => (
+                    productCogs.map((cogs: CogsItem) => (
                       <div key={cogs.id} className="flex items-center gap-4 group">
                         <input
                           value={cogs.name}

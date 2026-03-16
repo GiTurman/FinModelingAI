@@ -3,25 +3,25 @@
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import MonthlyTable, { TableRow } from '@/components/tables/MonthlyTable'
-import { MonthColumn } from '@/types/model'
+import { MonthColumn, ModelStore, CashFlowMonth } from '@/types/model'
 import { Settings } from 'lucide-react'
 import Link from 'next/link'
 
 
 export default function CFPage() {
-  const getCF = useModelStore((s) => s.getCF)
-  const getTimeline = useModelStore((s) => s.getTimeline)
-  const selectedView = useModelStore((s) => s.selectedView)
-  const salesItems = useModelStore((s) => s.salesItems)
-  const opexItems = useModelStore((s) => s.opexItems)
-  const capexItems = useModelStore((s) => s.capexItems)
-  const investments = useModelStore((s) => s.investments)
-  const taxRates = useModelStore((s) => s.taxRates)
-  const ops = useModelStore((s) => s.ops)
-  const config = useModelStore((s) => s.config)
-  const activeScenario = useModelStore((s) => s.scenarios.active)
-  const scenarioConfig = useModelStore((s) => s.scenarios[s.scenarios.active])
-  const language = useModelStore((s) => s.language)
+  const getCF = useModelStore((s: ModelStore) => s.getCF)
+  const getTimeline = useModelStore((s: ModelStore) => s.getTimeline)
+  const selectedView = useModelStore((s: ModelStore) => s.selectedView)
+  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
+  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
+  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
+  const investments = useModelStore((s: ModelStore) => s.investments)
+  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
+  const ops = useModelStore((s: ModelStore) => s.ops)
+  const config = useModelStore((s: ModelStore) => s.config)
+  const activeScenario = useModelStore((s: ModelStore) => s.scenarios.active)
+  const scenarioConfig = useModelStore((s: ModelStore) => s.scenarios[s.scenarios.active])
+  const language = useModelStore((s: ModelStore) => s.language)
 
   const timeline = useMemo(() => getTimeline(), [getTimeline, config])
   const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
@@ -51,7 +51,7 @@ export default function CFPage() {
         monthLabel: selectedView === 'annual' ? 'Total' : `Q${quarter}`
       })
 
-      const periodSum = slice.reduce((acc, m) => ({
+      const periodSum = slice.reduce((acc: any, m: CashFlowMonth) => ({
         netIncome: acc.netIncome + m.netIncome,
         depreciation: acc.depreciation + m.depreciation,
         changeInWC: acc.changeInWC + m.changeInWC,
@@ -83,23 +83,23 @@ export default function CFPage() {
 
   const rows: TableRow[] = useMemo(() => [
     { id: 's1', label: 'CASH FLOW FROM OPERATIONS', values: cols.map(() => 0), type: 'section' },
-    { id: 'ni', label: 'Net Income', values: cols.map((c, i) => displayData[i]?.netIncome ?? 0), type: 'normal' },
-    { id: 'dep', label: '  + Depreciation', values: cols.map((c, i) => displayData[i]?.depreciation ?? 0), type: 'indent' },
-    { id: 'wc', label: '  Δ Working Capital', values: cols.map((c, i) => displayData[i]?.changeInWC ?? 0), type: 'indent' },
-    { id: 'oc', label: 'Cash from Operations', values: cols.map((c, i) => displayData[i]?.cashFromOps ?? 0), type: 'subtotal' },
+    { id: 'ni', label: 'Net Income', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netIncome ?? 0), type: 'normal' },
+    { id: 'dep', label: '  + Depreciation', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.depreciation ?? 0), type: 'indent' },
+    { id: 'wc', label: '  Δ Working Capital', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.changeInWC ?? 0), type: 'indent' },
+    { id: 'oc', label: 'Cash from Operations', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromOps ?? 0), type: 'subtotal' },
     { id: 's2', label: 'CASH FLOW FROM INVESTING', values: cols.map(() => 0), type: 'section' },
-    { id: 'cap', label: '  - CapEx', values: cols.map((c, i) => displayData[i]?.capexOutflow ?? 0), type: 'indent', inverted: true },
-    { id: 'ci', label: 'Cash from Investing', values: cols.map((c, i) => displayData[i]?.cashFromInv ?? 0), type: 'subtotal' },
+    { id: 'cap', label: '  - CapEx', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.capexOutflow ?? 0), type: 'indent', inverted: true },
+    { id: 'ci', label: 'Cash from Investing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromInv ?? 0), type: 'subtotal' },
     { id: 's3', label: 'CASH FLOW FROM FINANCING', values: cols.map(() => 0), type: 'section' },
-    { id: 'eq', label: '  + Equity Injections', values: cols.map((c, i) => displayData[i]?.equityIn ?? 0), type: 'indent' },
-    { id: 'ln', label: '  + Loan Drawdowns', values: cols.map((c, i) => displayData[i]?.loanIn ?? 0), type: 'indent' },
-    { id: 'lp', label: '  - Loan Repayments', values: cols.map((c, i) => displayData[i]?.loanOut ?? 0), type: 'indent', inverted: true },
-    { id: 'cf', label: 'Cash from Financing', values: cols.map((c, i) => displayData[i]?.cashFromFin ?? 0), type: 'subtotal' },
-    { id: 'fcf', label: 'FREE CASH FLOW', values: cols.map((c, i) => displayData[i]?.freeCashFlow ?? 0), type: 'total' },
+    { id: 'eq', label: '  + Equity Injections', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.equityIn ?? 0), type: 'indent' },
+    { id: 'ln', label: '  + Loan Drawdowns', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanIn ?? 0), type: 'indent' },
+    { id: 'lp', label: '  - Loan Repayments', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanOut ?? 0), type: 'indent', inverted: true },
+    { id: 'cf', label: 'Cash from Financing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromFin ?? 0), type: 'subtotal' },
+    { id: 'fcf', label: 'FREE CASH FLOW', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.freeCashFlow ?? 0), type: 'total' },
     { id: 's4', label: 'CASH BALANCE', values: cols.map(() => 0), type: 'section' },
-    { id: 'op', label: 'Opening Cash', values: cols.map((c, i) => displayData[i]?.openingCash ?? 0), type: 'normal' },
-    { id: 'nc', label: 'Net Cash Change', values: cols.map((c, i) => displayData[i]?.netCashChange ?? 0), type: 'normal' },
-    { id: 'cl', label: 'CLOSING CASH', values: cols.map((c, i) => displayData[i]?.closingCash ?? 0), type: 'total' },
+    { id: 'op', label: 'Opening Cash', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.openingCash ?? 0), type: 'normal' },
+    { id: 'nc', label: 'Net Cash Change', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netCashChange ?? 0), type: 'normal' },
+    { id: 'cl', label: 'CLOSING CASH', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.closingCash ?? 0), type: 'total' },
   ], [cols, displayData])
 
   if (salesItems.length === 0) {

@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import KPICard from '@/components/dashboard/KPICard'
 import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
+import { ModelStore, IncomeStatementMonth, CashFlowMonth } from '@/types/model'
 import {
   DollarSign, TrendingUp, Activity, Wallet,
   Building2, Landmark, PlusCircle,
@@ -15,18 +16,18 @@ import {
 } from 'recharts'
 
 export default function Dashboard() {
-  const salesItems = useModelStore((s) => s.salesItems)
-  const cogsItems = useModelStore((s) => s.cogsItems)
-  const opexItems = useModelStore((s) => s.opexItems)
-  const capexItems = useModelStore((s) => s.capexItems)
-  const investments = useModelStore((s) => s.investments)
-  const taxRates = useModelStore((s) => s.taxRates)
-  const ops = useModelStore((s) => s.ops)
-  const config = useModelStore((s) => s.config)
-  const scenarios = useModelStore((s) => s.scenarios)
-  const getIS = useModelStore((s) => s.getIS)
-  const getCF = useModelStore((s) => s.getCF)
-  const getTimeline = useModelStore((s) => s.getTimeline)
+  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
+  const cogsItems = useModelStore((s: ModelStore) => s.cogsItems)
+  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
+  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
+  const investments = useModelStore((s: ModelStore) => s.investments)
+  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
+  const ops = useModelStore((s: ModelStore) => s.ops)
+  const config = useModelStore((s: ModelStore) => s.config)
+  const scenarios = useModelStore((s: ModelStore) => s.scenarios)
+  const getIS = useModelStore((s: ModelStore) => s.getIS)
+  const getCF = useModelStore((s: ModelStore) => s.getCF)
+  const getTimeline = useModelStore((s: ModelStore) => s.getTimeline)
 
   const activeScenario = scenarios.active
   const scenarioConfig = scenarios[activeScenario]
@@ -38,28 +39,28 @@ export default function Dashboard() {
   const hasData = salesItems.length > 0
 
   const stats = useMemo(() => {
-    const totalRevenue = sumArr(isData.map((m) => m.revenueExVat))
-    const totalNetIncome = sumArr(isData.map((m) => m.netIncome))
-    const totalEbitda = sumArr(isData.map((m) => m.ebitda))
+    const totalRevenue = sumArr(isData.map((m: IncomeStatementMonth) => m.revenueExVat))
+    const totalNetIncome = sumArr(isData.map((m: IncomeStatementMonth) => m.netIncome))
+    const totalEbitda = sumArr(isData.map((m: IncomeStatementMonth) => m.ebitda))
     const endingCash = cfData.length > 0 ? cfData[cfData.length - 1].closingCash : 0
     const avgGrossMargin = isData.length > 0
-      ? isData.reduce((s, m) => s + m.grossMargin, 0) / isData.filter((m) => m.revenueExVat > 0).length || 0
+      ? isData.reduce((s: number, m: IncomeStatementMonth) => s + m.grossMargin, 0) / isData.filter((m: IncomeStatementMonth) => m.revenueExVat > 0).length || 0
       : 0
     return { totalRevenue, totalNetIncome, totalEbitda, endingCash, avgGrossMargin }
   }, [isData, cfData])
 
   // Annual chart data
-  const annualData = useMemo(() => [1,2,3,4,5].map((yr) => {
+  const annualData = useMemo(() => [1,2,3,4,5].map((yr: number) => {
     const slice = isData.slice((yr-1)*12, yr*12)
     return {
       year: `Y${yr}`,
-      revenue: sumArr(slice.map((m) => m.revenueExVat)) / 1000,
-      ebitda: sumArr(slice.map((m) => m.ebitda)) / 1000,
-      netIncome: sumArr(slice.map((m) => m.netIncome)) / 1000,
+      revenue: sumArr(slice.map((m: IncomeStatementMonth) => m.revenueExVat)) / 1000,
+      ebitda: sumArr(slice.map((m: IncomeStatementMonth) => m.ebitda)) / 1000,
+      netIncome: sumArr(slice.map((m: IncomeStatementMonth) => m.netIncome)) / 1000,
     }
   }), [isData])
 
-  const cashData = useMemo(() => cfData.filter((_, i) => i % 3 === 0).map((m, i) => ({
+  const cashData = useMemo(() => cfData.filter((_: CashFlowMonth, i: number) => i % 3 === 0).map((m: CashFlowMonth, i: number) => ({
     month: timeline[i * 3]?.label ?? '',
     cash: m.closingCash / 1000,
     fcf: m.freeCashFlow / 1000,
@@ -169,21 +170,21 @@ export default function Dashboard() {
                 { label: 'შემოსავალი', key: 'revenueExVat' as const },
                 { label: 'EBITDA', key: 'ebitda' as const },
                 { label: 'წმ. მოგება', key: 'netIncome' as const },
-              ].map((row) => (
+              ].map((row: { label: string, key: keyof IncomeStatementMonth }) => (
                 <tr key={row.label}>
                   <td className="text-left">{row.label}</td>
-                  {[1,2,3,4,5].map((yr) => {
-                    const v = sumArr(isData.slice((yr-1)*12, yr*12).map((m) => m[row.key]))
+                  {[1,2,3,4,5].map((yr: number) => {
+                    const v = sumArr(isData.slice((yr-1)*12, yr*12).map((m: IncomeStatementMonth) => m[row.key] as number))
                     return <td key={yr} className={v < 0 ? 'negative' : ''}>{fmtGEL(v, true)}</td>
                   })}
                 </tr>
               ))}
               <tr className="row-subtotal">
                 <td className="text-left">EBITDA Margin</td>
-                {[1,2,3,4,5].map((yr) => {
+                {[1,2,3,4,5].map((yr: number) => {
                   const slice = isData.slice((yr-1)*12, yr*12)
-                  const rev = sumArr(slice.map((m) => m.revenueExVat))
-                  const ebitda = sumArr(slice.map((m) => m.ebitda))
+                  const rev = sumArr(slice.map((m: IncomeStatementMonth) => m.revenueExVat))
+                  const ebitda = sumArr(slice.map((m: IncomeStatementMonth) => m.ebitda))
                   return <td key={yr}>{rev > 0 ? fmtPct(ebitda / rev) : '-'}</td>
                 })}
               </tr>

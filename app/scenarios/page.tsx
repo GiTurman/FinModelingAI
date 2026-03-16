@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
+import { ModelStore, IncomeStatementMonth, CashFlowMonth } from '@/types/model'
 import { CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react'
 
 const CONFIGS = {
@@ -12,30 +13,30 @@ const CONFIGS = {
 }
 
 export default function ScenariosPage() {
-  const scenarios = useModelStore((s) => s.scenarios)
-  const setActiveScenario = useModelStore((s) => s.setActiveScenario)
-  const updateScenario = useModelStore((s) => s.updateScenario)
-  const getIS = useModelStore((s) => s.getIS)
-  const getCF = useModelStore((s) => s.getCF)
+  const scenarios = useModelStore((s: ModelStore) => s.scenarios)
+  const setActiveScenario = useModelStore((s: ModelStore) => s.setActiveScenario)
+  const updateScenario = useModelStore((s: ModelStore) => s.updateScenario)
+  const getIS = useModelStore((s: ModelStore) => s.getIS)
+  const getCF = useModelStore((s: ModelStore) => s.getCF)
   
   // Dependency tracking for useMemo
-  const salesItems = useModelStore((s) => s.salesItems)
-  const cogsItems = useModelStore((s) => s.cogsItems)
-  const opexItems = useModelStore((s) => s.opexItems)
-  const capexItems = useModelStore((s) => s.capexItems)
-  const investments = useModelStore((s) => s.investments)
-  const taxRates = useModelStore((s) => s.taxRates)
-  const ops = useModelStore((s) => s.ops)
-  const config = useModelStore((s) => s.config)
+  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
+  const cogsItems = useModelStore((s: ModelStore) => s.cogsItems)
+  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
+  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
+  const investments = useModelStore((s: ModelStore) => s.investments)
+  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
+  const ops = useModelStore((s: ModelStore) => s.ops)
+  const config = useModelStore((s: ModelStore) => s.config)
 
   // compute summary for each scenario
   const results = useMemo(() => {
     return (['base', 'bull', 'bear'] as const).map((type) => {
       const is = getIS(type)
       const cf = getCF(type)
-      const rev = sumArr(is.map((m) => m.revenueExVat))
-      const ni  = sumArr(is.map((m) => m.netIncome))
-      const ebitda = sumArr(is.map((m) => m.ebitda))
+      const rev = sumArr(is.map((m: IncomeStatementMonth) => m.revenueExVat))
+      const ni  = sumArr(is.map((m: IncomeStatementMonth) => m.netIncome))
+      const ebitda = sumArr(is.map((m: IncomeStatementMonth) => m.ebitda))
       const cash = cf.length > 0 ? cf[cf.length - 1].closingCash : 0
       return { type, rev, ni, ebitda, cash }
     })

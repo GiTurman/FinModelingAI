@@ -101,7 +101,7 @@ export default function LineItemsPage() {
               {stmt === 'IS' ? 'Income Statement' : stmt === 'BS' ? 'Balance Sheet' : 'Cash Flow'}
             </h2>
             <div className="space-y-2">
-              {customCategories.filter(c => c.statement === stmt).map(cat => (
+              {customCategories.filter((c: CustomCategory) => c.statement === stmt).map((cat: CustomCategory) => (
                 <div key={cat.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between group">
                   <div>
                     <p className="text-sm font-semibold text-slate-800 dark:text-white">{cat.name}</p>
@@ -115,7 +115,7 @@ export default function LineItemsPage() {
                   </button>
                 </div>
               ))}
-              {customCategories.filter(c => c.statement === stmt).length === 0 && (
+              {customCategories.filter((c: CustomCategory) => c.statement === stmt).length === 0 && (
                 <p className="text-xs text-slate-400 italic py-2">No custom items defined</p>
               )}
             </div>

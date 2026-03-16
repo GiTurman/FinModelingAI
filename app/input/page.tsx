@@ -10,7 +10,7 @@ export default function InputPage() {
     <div className="page-in max-w-2xl space-y-6">
       <div>
         <h1 className="text-xl font-bold text-slate-800 dark:text-white">Input</h1>
-        <p className="text-sm text-slate-500 mt-1">მოდელის ძირითადი პარამეტრები — Excel-ის "Input" sheet-ის ანალოგი</p>
+        <p className="text-sm text-slate-500 mt-1">მოდელის ძირითადი პარამეტრები — Excel-ის &quot;Input&quot; sheet-ის ანალოგი</p>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 divide-y divide-slate-100 dark:divide-slate-800">
@@ -41,6 +41,7 @@ export default function InputPage() {
             <div className="flex items-center gap-2">
               <input
                 type="number"
+                inputMode="numeric"
                 value={config.modelLengthMonths}
                 onChange={(e) => setConfig({ modelLengthMonths: Math.max(12, Math.min(120, Number(e.target.value))) })}
                 min={12} max={120}

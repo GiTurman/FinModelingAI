@@ -1,43 +1,76 @@
 // types/model.ts
+import { TimePeriod } from '@/lib/time'
 
-export interface MonthColumn {
-  index: number
-  label: string
-  year: number
-  month: number
-  yearLabel: string
-  monthLabel: string
-}
-
-export interface ModelConfig {
-  startDate: string
-  modelLengthMonths: number
+export interface Config {
+  modelName: string
   currency: string
+  startDate: string // YYYY-MM-DD
+  modelLengthMonths: number
   territory: string
 }
 
 export interface TaxRates {
   vatRate: number
   corporateTaxRate: number
-  personalIncomeTaxRate: number
-  pensionRate: number
   dividendTaxRate: number
+  pensionRate: number
+  personalIncomeTaxRate: number
 }
 
-export interface OperationalSettings {
-  dso: number
-  dpo: number
+export interface Ops {
   inflationRate: number
   defaultLoanRate: number
-  fxRates: { [key: string]: number }
+  dso: number // Days Sales Outstanding
+  dpo: number // Days Payable Outstanding
+  fxRates: {
+    usd: number
+    eur: number
+  }
 }
 
 export interface SalesItem {
   id: string
   name: string
+  category: string
   unitPrice: number
-  monthlyUnits: number[]
   vatIncluded: boolean
+  monthlyUnits: number[]
+}
+
+export interface CogsItem {
+  id:string
+  name: string
+  salesItemId: string
+  unitCost: number
+}
+
+export interface OpexItem {
+  id: string
+  name: string
+  category: 'G&A' | 'S&M' | 'R&D'
+  customCategoryId?: string
+  monthlyAmount: number[]
+  inflationAdjusted: boolean
+  isSalary: boolean // ADDED
+}
+
+export interface CapexItem {
+  id: string
+  name: string
+  amount: number
+  monthIndex: number
+  usefulLifeMonths: number
+  residualValue: number // ADDED
+}
+
+export interface InvestmentItem {
+  id: string
+  name: string
+  type: 'Equity' | 'Loan' | 'Grant'
+  amount: number
+  monthIndex: number // VERIFIED
+  interestRate: number // VERIFIED
+  termMonths: number // VERIFIED
 }
 
 export interface CustomCategory {
@@ -47,48 +80,88 @@ export interface CustomCategory {
   section: string
 }
 
-export interface OpexItem {
-  id: string
-  name: string
-  category: 'S&M' | 'G&A' | 'R&D' | 'Operations' | 'Other'
-  customCategoryId?: string
-  monthlyAmount: number[]
-  inflationAdjusted: boolean
-}
-
-export interface CapexItem {
-  id: string
-  name: string
-  amount: number
-  monthIndex: number
-  usefulLifeMonths: number
-}
-
-export interface InvestmentItem {
-  id: string
-  name: string
-  type: 'Equity' | 'Loan' | 'Grant'
-  amount: number
-  monthIndex: number
-  interestRate: number
-  termMonths: number
-}
-
-export interface CogsItem {
-  id: string
-  salesItemId: string
-  name: string
-  unitCost: number
-}
-
-export interface ScenarioConfig {
+export interface Scenario {
   revenueMultiplier: number
   cogsMultiplier: number
   opexMultiplier: number
   capexMultiplier: number
 }
 
-export interface IncomeStatementMonth {
+// ADDED
+export interface DividendDeclaration {
+  id: string
+  year: number          // 1-5 (model year)
+  amount: number        // GEL amount declared
+  description: string
+}
+
+export interface ModelStore {
+  config: Config
+  taxRates: TaxRates
+  ops: Ops
+  salesItems: SalesItem[]
+  cogsItems: CogsItem[]
+  opexItems: OpexItem[]
+  capexItems: CapexItem[]
+  investments: InvestmentItem[]
+  customCategories: CustomCategory[]
+  scenarios: {
+    active: 'base' | 'bull' | 'bear'
+    base: Scenario
+    bull: Scenario
+    bear: Scenario
+  }
+  dividendDeclarations: DividendDeclaration[] // ADDED
+  language: 'en' | 'ka'
+  setLanguage: (lang: 'en' | 'ka') => void
+  selectedView: 'monthly' | 'quarterly' | 'annual'
+  setSelectedView: (view: 'monthly' | 'quarterly' | 'annual') => void
+
+  // Helper getters
+  getTimeline: () => TimePeriod[]
+  getIS: (scenario?: 'base' | 'bull' | 'bear') => IncomeStatementMonth[]
+  getCF: (scenario?: 'base' | 'bull' | 'bear') => CashFlowMonth[]
+
+  // Actions
+  setConfig: (config: Partial<Config>) => void
+  setTaxRates: (taxRates: Partial<TaxRates>) => void
+  setOps: (ops: Partial<Ops>) => void
+  setActiveScenario: (scenario: 'base' | 'bull' | 'bear') => void
+  updateScenario: (scenario: 'base' | 'bull' | 'bear', multipliers: Partial<Scenario>) => void
+
+  addSalesItem: (item: Omit<SalesItem, 'id'>) => void
+  updateSalesItem: (id: string, item: Partial<SalesItem>) => void
+  removeSalesItem: (id: string) => void
+
+  addCogsItem: (item: Omit<CogsItem, 'id'>) => void
+  updateCogsItem: (id: string, item: Partial<CogsItem>) => void
+  removeCogsItem: (id: string) => void
+
+  addOpexItem: (item: Omit<OpexItem, 'id'>) => void
+  updateOpexItem: (id: string, item: Partial<OpexItem>) => void
+  removeOpexItem: (id: string) => void
+
+  addCapexItem: (item: Omit<CapexItem, 'id'>) => void
+  updateCapexItem: (id: string, item: Partial<CapexItem>) => void
+  removeCapexItem: (id: string) => void
+
+  addInvestment: (item: Omit<InvestmentItem, 'id'>) => void
+  updateInvestment: (id: string, item: Partial<InvestmentItem>) => void
+  removeInvestment: (id: string) => void
+
+  addCustomCategory: (item: Omit<CustomCategory, 'id'>) => void
+  updateCustomCategory: (id: string, item: Partial<CustomCategory>) => void
+  removeCustomCategory: (id: string) => void
+
+  addDividendDeclaration: (item: Omit<DividendDeclaration, 'id'>) => void
+  updateDividendDeclaration: (id: string, item: Partial<DividendDeclaration>) => void
+  removeDividendDeclaration: (id: string) => void
+
+  hydrate: (data: Partial<ModelStore>) => void
+}
+
+// Financial Statement Interfaces
+export interface IncomeStatementMonth extends TimePeriod {
   revenue: number
   revenueExVat: number
   cogs: number
@@ -107,10 +180,10 @@ export interface IncomeStatementMonth {
   corporateTax: number
   netIncome: number
   netMargin: number
-  customValues?: { [categoryId: string]: number }
+  customValues: Record<string, number>
 }
 
-export interface CashFlowMonth {
+export interface CashFlowMonth extends TimePeriod {
   openingCash: number
   netIncome: number
   depreciation: number
@@ -125,57 +198,24 @@ export interface CashFlowMonth {
   netCashChange: number
   closingCash: number
   freeCashFlow: number
-  customValues?: { [categoryId: string]: number }
 }
 
-export interface ModelStore {
-  config: ModelConfig
-  taxRates: TaxRates
-  ops: OperationalSettings
-  salesItems: SalesItem[]
-  cogsItems: CogsItem[]
-  opexItems: OpexItem[]
-  capexItems: CapexItem[]
-  customCategories: CustomCategory[]
-  investments: InvestmentItem[]
-  scenarios: {
-    active: 'base' | 'bull' | 'bear'
-    base: ScenarioConfig
-    bull: ScenarioConfig
-    bear: ScenarioConfig
-  }
-  language: 'ka' | 'en' | 'ru'
-  selectedView: 'monthly' | 'quarterly' | 'annual'
-
-  // Actions
-  setConfig: (config: Partial<ModelConfig>) => void
-  setTaxRates: (rates: Partial<TaxRates>) => void
-  setOps: (ops: Partial<OperationalSettings>) => void
-  addSalesItem: (item: Omit<SalesItem, 'id'>) => void
-  updateSalesItem: (id: string, item: Partial<SalesItem>) => void
-  removeSalesItem: (id: string) => void
-  addCogsItem: (item: Omit<CogsItem, 'id'>) => void
-  updateCogsItem: (id: string, item: Partial<CogsItem>) => void
-  removeCogsItem: (id: string) => void
-  addOpexItem: (item: Omit<OpexItem, 'id'>) => void
-  updateOpexItem: (id: string, item: Partial<OpexItem>) => void
-  removeOpexItem: (id: string) => void
-  addCapexItem: (item: Omit<CapexItem, 'id'>) => void
-  updateCapexItem: (id: string, item: Partial<CapexItem>) => void
-  removeCapexItem: (id: string) => void
-  addCustomCategory: (item: Omit<CustomCategory, 'id'>) => void
-  updateCustomCategory: (id: string, item: Partial<CustomCategory>) => void
-  removeCustomCategory: (id: string) => void
-  addInvestment: (item: Omit<InvestmentItem, 'id'>) => void
-  updateInvestment: (id: string, item: Partial<InvestmentItem>) => void
-  removeInvestment: (id: string) => void
-  setActiveScenario: (type: 'base' | 'bull' | 'bear') => void
-  updateScenario: (type: 'base' | 'bull' | 'bear', config: Partial<ScenarioConfig>) => void
-  setLanguage: (lang: 'ka' | 'en' | 'ru') => void
-  setView: (view: 'monthly' | 'quarterly' | 'annual') => void
-
-  // Computed
-  getTimeline: () => MonthColumn[]
-  getIS: (scenarioType?: 'base' | 'bull' | 'bear') => IncomeStatementMonth[]
-  getCF: (scenarioType?: 'base' | 'bull' | 'bear') => CashFlowMonth[]
+export interface BalanceSheetMonth extends TimePeriod {
+  cash: number
+  accountsReceivable: number
+  inventory: number // Placeholder
+  currentAssets: number
+  netPPE: number
+  totalAssets: number
+  accountsPayable: number
+  currentLiabilities: number
+  longTermDebt: number
+  totalLiabilities: number
+  paidInCapital: number
+  retainedEarnings: number
+  totalEquity: number
+  totalLiabilitiesEquity: number
+  check: number
 }
+
+export type MonthColumn = TimePeriod

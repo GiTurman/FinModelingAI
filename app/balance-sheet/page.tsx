@@ -1,212 +1,147 @@
-'use client'
 // app/balance-sheet/page.tsx
-import { useMemo } from 'react'
+'use client'
+import React, { useState, useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
-import { fmtGEL } from '@/lib/calculations'
-import { MonthColumn } from '@/types/model'
-import { CheckCircle2, AlertCircle, Settings } from 'lucide-react'
-import Link from 'next/link'
+import { buildIS, buildCF, buildBS } from '@/lib/calculations'
+import { generateTimeline } from '@/lib/time'
+import { CapexItem } from '@/types/model'
+import FinancialStatement from '@/components/financial/FinancialStatement'
+import { AlertTriangle } from 'lucide-react'
 
+export default function BalanceSheetPage() {
+  const store = useModelStore()
+  const { capexItems } = store
+  const [view, setView] = useState<'monthly' | 'quarterly' | 'annual'>('annual')
 
-export default function BSPage() {
-  const getCF = useModelStore((s) => s.getCF)
-  const getIS = useModelStore((s) => s.getIS)
-  const getTimeline = useModelStore((s) => s.getTimeline)
-  const selectedView = useModelStore((s) => s.selectedView)
-  const salesItems = useModelStore((s) => s.salesItems)
-  const opexItems = useModelStore((s) => s.opexItems)
-  const capexItems = useModelStore((s) => s.capexItems)
-  const investments = useModelStore((s) => s.investments)
-  const taxRates = useModelStore((s) => s.taxRates)
-  const ops = useModelStore((s) => s.ops)
-  const config = useModelStore((s) => s.config)
-  const activeScenario = useModelStore((s) => s.scenarios.active)
-  const scenarioConfig = useModelStore((s) => s.scenarios[s.scenarios.active])
-  const customCategories = useModelStore((s) => s.customCategories)
-  const language = useModelStore((s) => s.language)
+  const timeline = useMemo(() => generateTimeline(store.config.startDate, store.config.modelLengthMonths), [store.config.startDate, store.config.modelLengthMonths])
 
-  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
-  const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
-  const isData = useMemo(() => getIS(), [getIS, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const { isData, cfData, bsData } = useMemo(() => {
+    const isData = buildIS(store)
+    const cfData = buildCF(store, isData)
+    const bsData = buildBS(store, isData, cfData)
+    return { isData, cfData, bsData }
+  }, [store])
 
-  // Build simple BS from CF closing cash + IS data
-  const bs = useMemo(() => {
-    let runningRetainedEarnings = 0
-    return cfData.map((cf, i) => {
-      const is = isData[i] ?? { revenueExVat: 0, netIncome: 0, depreciation: 0 }
-      const ar = is.revenueExVat * (ops.dso / 30)
-      const cash = cf.closingCash
-      const totalCurrentAssets = cash + ar
-      const netPPE = 0 // tracked in CAPEX page
-      const totalAssets = totalCurrentAssets + netPPE
+  const data = useMemo(() => {
+    return timeline.map((t, i) => {
+      const is = isData[i]
+      const cf = cfData[i]
+      const bs = bsData[i]
 
-      const ap = 0
-      const vatPayable = (is.revenueExVat * taxRates.vatRate)
-      const totalCurrentLiab = ap + vatPayable
-      const longTermDebt = cf.openingCash < 0 ? Math.abs(cf.openingCash) : 0
-      const totalLiab = totalCurrentLiab + longTermDebt
+      // Assets
+      const cash = bs.cash
+      const accountsReceivable = bs.accountsReceivable
+      const inventory = 0 // Placeholder
+      const currentAssets = cash + accountsReceivable + inventory
 
-      runningRetainedEarnings += is.netIncome
-      const totalEquity = runningRetainedEarnings
-      const check = totalAssets - (totalLiab + totalEquity)
+      const capexItemsData = capexItems
+      const netPPE = capexItemsData.reduce((sum: number, item: CapexItem) => {
+        if (i < item.monthIndex) return sum
+        const monthsDepreciated = i - item.monthIndex + 1
+        const depreciable = item.amount - (item.residualValue ?? 0)
+        const accDep = (depreciable / Math.max(item.usefulLifeMonths, 1)) * monthsDepreciated
+        return sum + Math.max(item.amount - accDep, 0)
+      }, 0)
 
-      return { cash, ar, totalCurrentAssets, netPPE, totalAssets, ap, vatPayable, totalCurrentLiab, longTermDebt, totalLiab, retainedEarnings: runningRetainedEarnings, totalEquity, check }
+      const totalAssets = currentAssets + netPPE
+
+      // Liabilities
+      const accountsPayable = bs.accountsPayable
+      const currentLiabilities = accountsPayable // + current portion of LTD
+      const longTermDebt = bs.longTermDebt
+      const totalLiabilities = currentLiabilities + longTermDebt
+
+      // Equity
+      const paidInCapital = bs.paidInCapital
+      const retainedEarnings = bs.retainedEarnings
+      const totalEquity = paidInCapital + retainedEarnings
+
+      const totalLiabilitiesEquity = totalLiabilities + totalEquity
+      const check = totalAssets - totalLiabilitiesEquity
+
+      const hasCapexData = capexItems.length > 0
+      const bsIsComplete = hasCapexData
+
+      return {
+        ...t,
+        cash,
+        accountsReceivable,
+        inventory,
+        currentAssets,
+        netPPE,
+        totalAssets,
+        accountsPayable,
+        currentLiabilities,
+        longTermDebt,
+        totalLiabilities,
+        paidInCapital,
+        retainedEarnings,
+        totalEquity,
+        totalLiabilitiesEquity,
+        check,
+        bsIsComplete,
+      }
     })
-  }, [cfData, isData, ops.dso, taxRates.vatRate])
+  }, [timeline, isData, cfData, bsData, capexItems])
 
-  const { cols, displayData } = useMemo(() => {
-    if (selectedView === 'monthly') {
-      return { cols: timeline, displayData: bs }
+  const rows = [
+    { key: 'cash', label: 'Cash & Equivalents', bold: false, indent: 1 },
+    { key: 'accountsReceivable', label: 'Accounts Receivable', bold: false, indent: 1 },
+    { key: 'inventory', label: 'Inventory', bold: false, indent: 1, isPlaceholder: true },
+    { key: 'currentAssets', label: 'Total Current Assets', bold: true, indent: 0 },
+    { key: 'netPPE', label: 'Net Property, Plant & Equipment', bold: false, indent: 1 },
+    { key: 'totalAssets', label: 'Total Assets', bold: true, indent: 0, isHeader: true },
+    { key: 'separator', label: '', isSeparator: true },
+    { key: 'accountsPayable', label: 'Accounts Payable', bold: false, indent: 1 },
+    { key: 'currentLiabilities', label: 'Total Current Liabilities', bold: true, indent: 0 },
+    { key: 'longTermDebt', label: 'Long-Term Debt', bold: false, indent: 1 },
+    { key: 'totalLiabilities', label: 'Total Liabilities', bold: true, indent: 0, isHeader: true },
+    { key: 'separator', label: '', isSeparator: true },
+    { key: 'paidInCapital', label: 'Paid-in Capital', bold: false, indent: 1 },
+    { key: 'retainedEarnings', label: 'Retained Earnings', bold: false, indent: 1 },
+    { key: 'totalEquity', label: 'Total Equity', bold: true, indent: 0 },
+    { key: 'totalLiabilitiesEquity', label: 'Total Liabilities & Equity', bold: true, indent: 0, isHeader: true },
+    { key: 'separator', label: '', isSeparator: true },
+    { key: 'check', label: 'Balance Check', bold: true, indent: 0, isCheck: true },
+  ]
+
+  const lastMonth = data[data.length - 1]
+  const isBalanced = lastMonth && Math.abs(lastMonth.check) < 1
+  const isComplete = lastMonth && lastMonth.bsIsComplete
+
+  const balanceStatus = () => {
+    if (!isComplete) {
+      return (
+        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm">
+          <AlertTriangle size={16} />
+          <span>Model Incomplete: Some schedules are not yet fully integrated. Balance sheet may not balance.</span>
+        </div>
+      )
     }
-
-    const newCols: any[] = []
-    const newData: any[] = []
-
-    const periodSize = selectedView === 'annual' ? 12 : 3
-    const numPeriods = Math.ceil(bs.length / periodSize)
-
-    for (let i = 0; i < numPeriods; i++) {
-      const lastMonthIdx = Math.min((i + 1) * periodSize - 1, bs.length - 1)
-      const periodEndData = bs[lastMonthIdx]
-      if (!periodEndData) break
-
-      const year = Math.floor((i * periodSize) / 12) + 1
-      const quarter = Math.floor(((i * periodSize) % 12) / 3) + 1
-
-      newCols.push({
-        index: i,
-        label: selectedView === 'annual' ? `Year ${year}` : `Q${quarter} Y${year}`,
-        yearLabel: `Y${year}`,
-        monthLabel: selectedView === 'annual' ? 'Total' : `Q${quarter}`
-      })
-
-      newData.push(periodEndData)
+    if (isBalanced) {
+      return (
+        <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span>Assets = Liabilities + Equity. The balance sheet is balanced.</span>
+        </div>
+      )
     }
-
-    return { cols: newCols, displayData: newData }
-  }, [selectedView, timeline, bs])
-
-  if (salesItems.length === 0) {
-    return <div className="page-in flex items-center justify-center min-h-[50vh] text-slate-400 text-sm">Sales-ში გაყიდვები დაამატეთ</div>
+    return (
+      <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <span>Balance sheet is NOT balanced. Check input schedules for errors.</span>
+      </div>
+    )
   }
 
-  type BSKey = keyof typeof bs[0]
-  const rows: { id?: string; label: string; key?: BSKey; type?: 'section'|'subtotal'|'total'|'indent'; customId?: string }[] = useMemo(() => {
-    const baseRows: any[] = [
-      { label: 'ASSETS', type: 'section' },
-      { label: 'Current Assets', type: 'section' },
-      { label: '  Cash & Equivalents', key: 'cash', type: 'indent' },
-      { label: '  Accounts Receivable (DSO=' + ops.dso + 'd)', key: 'ar', type: 'indent' },
-    ]
-
-    // Custom Assets
-    customCategories.filter(c => c.statement === 'BS' && c.section === 'Assets').forEach(cat => {
-      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
-    })
-
-    baseRows.push(
-      { label: 'Total Current Assets', key: 'totalCurrentAssets', type: 'subtotal' },
-      { label: 'Non-Current Assets', type: 'section' },
-      { label: '  Net PP&E', key: 'netPPE', type: 'indent' },
-      { label: 'TOTAL ASSETS', key: 'totalAssets', type: 'total' },
-      { label: 'LIABILITIES & EQUITY', type: 'section' },
-      { label: 'Current Liabilities', type: 'section' },
-      { label: '  Accounts Payable', key: 'ap', type: 'indent' },
-      { label: '  VAT Payable', key: 'vatPayable', type: 'indent' },
-    )
-
-    // Custom Liabilities
-    customCategories.filter(c => c.statement === 'BS' && c.section === 'Liabilities').forEach(cat => {
-      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
-    })
-
-    baseRows.push(
-      { label: 'Total Current Liabilities', key: 'totalCurrentLiab', type: 'subtotal' },
-      { label: '  Long-Term Debt', key: 'longTermDebt', type: 'indent' },
-      { label: 'Total Liabilities', key: 'totalLiab', type: 'subtotal' },
-      { label: 'Equity', type: 'section' },
-      { label: '  Retained Earnings', key: 'retainedEarnings', type: 'indent' },
-    )
-
-    // Custom Equity
-    customCategories.filter(c => c.statement === 'BS' && c.section === 'Equity').forEach(cat => {
-      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
-    })
-
-    baseRows.push(
-      { label: 'Total Equity', key: 'totalEquity', type: 'subtotal' },
-      { label: 'TOTAL LIABILITIES + EQUITY', key: 'check', type: 'total' },
-    )
-
-    return baseRows
-  }, [ops.dso, customCategories])
-
-  const lastMonth = bs[bs.length - 1]
-  const isBalanced = lastMonth ? Math.abs(lastMonth.check) < 1 : true
-
   return (
-    <div className="page-in space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white">Balance Sheet</h1>
-            <p className="text-xs text-slate-400 mt-1">ბალანსი • {selectedView}</p>
-          </div>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border ${isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-            {isBalanced ? <CheckCircle2 size={14}/> : <AlertCircle size={14}/>}
-            {isBalanced ? 'BALANCED ✓' : 'NOT BALANCED'}
-          </div>
-        </div>
-        <Link
-          href="/line-items"
-          className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-        >
-          <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
-        </Link>
-      </div>
-
-      <div className="table-scroll">
-        <table className="fm-table">
-          <thead>
-            <tr>
-              <th className="text-left">Item</th>
-              {cols.map((c) => <th key={c.index}>{c.yearLabel} {c.monthLabel}</th>)}
-            </tr>
-            <tr className="bg-slate-700">
-              <th className="text-left sticky left-0 bg-slate-700 text-slate-300">Date</th>
-              {cols.map((c) => <th key={c.index} className="text-slate-300 font-normal">{c.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              if (row.type === 'section') {
-                return (
-                  <tr key={row.label} className="row-section">
-                    <td colSpan={cols.length + 1} className="text-white bg-slate-700">{row.label}</td>
-                  </tr>
-                )
-              }
-              return (
-                <tr key={row.label} className={row.type === 'total' ? 'row-total' : row.type === 'subtotal' ? 'row-subtotal' : ''}>
-                  <td className={`text-left ${row.type === 'indent' ? 'pl-6 text-slate-500' : ''} ${row.type === 'total' ? 'text-white bg-slate-800' : ''}`}>
-                    {row.label}
-                  </td>
-                  {cols.map((c, i) => {
-                    const v = row.key ? (displayData[i]?.[row.key] ?? 0) : 0
-                    // Note: BS custom values are not yet fully integrated into calculations
-                    // but we show the row as requested.
-                    return (
-                      <td key={c.index} className={`${v < 0 ? 'negative' : ''} ${row.type === 'total' ? 'text-white' : ''}`}>
-                        {fmtGEL(v as number)}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <FinancialStatement
+      title="Balance Sheet"
+      data={data}
+      rows={rows}
+      view={view}
+      setView={setView}
+      infoPanel={balanceStatus()}
+    />
   )
 }
