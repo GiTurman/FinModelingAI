@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import MonthlyTable, { TableRow } from '@/components/tables/MonthlyTable'
 import { MonthColumn } from '@/types/model'
+import { Settings } from 'lucide-react'
+import Link from 'next/link'
 
 
 export default function CFPage() {
@@ -19,6 +21,7 @@ export default function CFPage() {
   const config = useModelStore((s) => s.config)
   const activeScenario = useModelStore((s) => s.scenarios.active)
   const scenarioConfig = useModelStore((s) => s.scenarios[s.scenarios.active])
+  const language = useModelStore((s) => s.language)
 
   const timeline = useMemo(() => getTimeline(), [getTimeline, config])
   const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
@@ -105,9 +108,17 @@ export default function CFPage() {
 
   return (
     <div className="page-in space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Cash Flow Statement</h1>
-        <p className="text-xs text-slate-400 mt-1">ფულადი ნაკადების ანგარიშგება • {selectedView}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Cash Flow Statement</h1>
+          <p className="text-xs text-slate-400 mt-1">ფულადი ნაკადების ანგარიშგება • {selectedView}</p>
+        </div>
+        <Link
+          href="/line-items"
+          className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+        >
+          <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
+        </Link>
       </div>
       <MonthlyTable columns={cols} rows={rows} />
     </div>

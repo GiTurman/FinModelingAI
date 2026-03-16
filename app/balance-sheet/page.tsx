@@ -4,7 +4,8 @@ import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { fmtGEL } from '@/lib/calculations'
 import { MonthColumn } from '@/types/model'
-import { CheckCircle2, AlertCircle } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Settings } from 'lucide-react'
+import Link from 'next/link'
 
 
 export default function BSPage() {
@@ -21,6 +22,8 @@ export default function BSPage() {
   const config = useModelStore((s) => s.config)
   const activeScenario = useModelStore((s) => s.scenarios.active)
   const scenarioConfig = useModelStore((s) => s.scenarios[s.scenarios.active])
+  const customCategories = useModelStore((s) => s.customCategories)
+  const language = useModelStore((s) => s.language)
 
   const timeline = useMemo(() => getTimeline(), [getTimeline, config])
   const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
@@ -88,42 +91,78 @@ export default function BSPage() {
   }
 
   type BSKey = keyof typeof bs[0]
-  const rows: { label: string; key: BSKey; type?: 'section'|'subtotal'|'total'|'indent' }[] = [
-    { label: 'ASSETS', key: 'cash', type: 'section' },
-    { label: 'Current Assets', key: 'cash', type: 'section' },
-    { label: '  Cash & Equivalents', key: 'cash', type: 'indent' },
-    { label: '  Accounts Receivable (DSO=' + ops.dso + 'd)', key: 'ar', type: 'indent' },
-    { label: 'Total Current Assets', key: 'totalCurrentAssets', type: 'subtotal' },
-    { label: 'Non-Current Assets', key: 'netPPE', type: 'section' },
-    { label: '  Net PP&E', key: 'netPPE', type: 'indent' },
-    { label: 'TOTAL ASSETS', key: 'totalAssets', type: 'total' },
-    { label: 'LIABILITIES & EQUITY', key: 'ap', type: 'section' },
-    { label: 'Current Liabilities', key: 'ap', type: 'section' },
-    { label: '  Accounts Payable', key: 'ap', type: 'indent' },
-    { label: '  VAT Payable', key: 'vatPayable', type: 'indent' },
-    { label: 'Total Current Liabilities', key: 'totalCurrentLiab', type: 'subtotal' },
-    { label: '  Long-Term Debt', key: 'longTermDebt', type: 'indent' },
-    { label: 'Total Liabilities', key: 'totalLiab', type: 'subtotal' },
-    { label: 'Equity', key: 'retainedEarnings', type: 'section' },
-    { label: '  Retained Earnings', key: 'retainedEarnings', type: 'indent' },
-    { label: 'Total Equity', key: 'totalEquity', type: 'subtotal' },
-    { label: 'TOTAL LIABILITIES + EQUITY', key: 'check', type: 'total' },
-  ]
+  const rows: { id?: string; label: string; key?: BSKey; type?: 'section'|'subtotal'|'total'|'indent'; customId?: string }[] = useMemo(() => {
+    const baseRows: any[] = [
+      { label: 'ASSETS', type: 'section' },
+      { label: 'Current Assets', type: 'section' },
+      { label: '  Cash & Equivalents', key: 'cash', type: 'indent' },
+      { label: '  Accounts Receivable (DSO=' + ops.dso + 'd)', key: 'ar', type: 'indent' },
+    ]
+
+    // Custom Assets
+    customCategories.filter(c => c.statement === 'BS' && c.section === 'Assets').forEach(cat => {
+      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
+    })
+
+    baseRows.push(
+      { label: 'Total Current Assets', key: 'totalCurrentAssets', type: 'subtotal' },
+      { label: 'Non-Current Assets', type: 'section' },
+      { label: '  Net PP&E', key: 'netPPE', type: 'indent' },
+      { label: 'TOTAL ASSETS', key: 'totalAssets', type: 'total' },
+      { label: 'LIABILITIES & EQUITY', type: 'section' },
+      { label: 'Current Liabilities', type: 'section' },
+      { label: '  Accounts Payable', key: 'ap', type: 'indent' },
+      { label: '  VAT Payable', key: 'vatPayable', type: 'indent' },
+    )
+
+    // Custom Liabilities
+    customCategories.filter(c => c.statement === 'BS' && c.section === 'Liabilities').forEach(cat => {
+      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
+    })
+
+    baseRows.push(
+      { label: 'Total Current Liabilities', key: 'totalCurrentLiab', type: 'subtotal' },
+      { label: '  Long-Term Debt', key: 'longTermDebt', type: 'indent' },
+      { label: 'Total Liabilities', key: 'totalLiab', type: 'subtotal' },
+      { label: 'Equity', type: 'section' },
+      { label: '  Retained Earnings', key: 'retainedEarnings', type: 'indent' },
+    )
+
+    // Custom Equity
+    customCategories.filter(c => c.statement === 'BS' && c.section === 'Equity').forEach(cat => {
+      baseRows.push({ label: `  ${cat.name}`, customId: cat.id, type: 'indent' })
+    })
+
+    baseRows.push(
+      { label: 'Total Equity', key: 'totalEquity', type: 'subtotal' },
+      { label: 'TOTAL LIABILITIES + EQUITY', key: 'check', type: 'total' },
+    )
+
+    return baseRows
+  }, [ops.dso, customCategories])
 
   const lastMonth = bs[bs.length - 1]
   const isBalanced = lastMonth ? Math.abs(lastMonth.check) < 1 : true
 
   return (
     <div className="page-in space-y-4">
-      <div className="flex items-center gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Balance Sheet</h1>
-          <p className="text-xs text-slate-400 mt-1">ბალანსი • {selectedView}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-white">Balance Sheet</h1>
+            <p className="text-xs text-slate-400 mt-1">ბალანსი • {selectedView}</p>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border ${isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            {isBalanced ? <CheckCircle2 size={14}/> : <AlertCircle size={14}/>}
+            {isBalanced ? 'BALANCED ✓' : 'NOT BALANCED'}
+          </div>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border ${isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          {isBalanced ? <CheckCircle2 size={14}/> : <AlertCircle size={14}/>}
-          {isBalanced ? 'BALANCED ✓' : 'NOT BALANCED'}
-        </div>
+        <Link
+          href="/line-items"
+          className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+        >
+          <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
+        </Link>
       </div>
 
       <div className="table-scroll">
@@ -153,7 +192,9 @@ export default function BSPage() {
                     {row.label}
                   </td>
                   {cols.map((c, i) => {
-                    const v = displayData[i]?.[row.key] ?? 0
+                    const v = row.key ? (displayData[i]?.[row.key] ?? 0) : 0
+                    // Note: BS custom values are not yet fully integrated into calculations
+                    // but we show the row as requested.
                     return (
                       <td key={c.index} className={`${v < 0 ? 'negative' : ''} ${row.type === 'total' ? 'text-white' : ''}`}>
                         {fmtGEL(v as number)}

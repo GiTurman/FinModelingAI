@@ -31,6 +31,7 @@ export const useModelStore = create<ModelStore>()(
       cogsItems: [],
       opexItems: [],
       capexItems: [],
+      customCategories: [],
       investments: [],
       scenarios: {
         active: 'base',
@@ -84,6 +85,16 @@ export const useModelStore = create<ModelStore>()(
       })),
       removeCapexItem: (id) => set((state) => ({
         capexItems: state.capexItems.filter((i) => i.id !== id)
+      })),
+
+      addCustomCategory: (item) => set((state) => ({
+        customCategories: [...state.customCategories, { ...item, id: Math.random().toString(36).substr(2, 9) }]
+      })),
+      updateCustomCategory: (id, item) => set((state) => ({
+        customCategories: state.customCategories.map((i) => (i.id === id ? { ...i, ...item } : i))
+      })),
+      removeCustomCategory: (id) => set((state) => ({
+        customCategories: state.customCategories.filter((i) => i.id !== id)
       })),
 
       addInvestment: (item) => set((state) => ({

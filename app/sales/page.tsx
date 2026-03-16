@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { SalesItem } from '@/types/model'
 import { fmtGEL, sumArr } from '@/lib/calculations'
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
+import Link from 'next/link'
 
 const MONTHS = 60
 
@@ -18,7 +19,7 @@ function newItem(): Omit<SalesItem, 'id'> {
 }
 
 export default function SalesPage() {
-  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, getTimeline, taxRates } = useModelStore()
+  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, getTimeline, taxRates, language } = useModelStore()
   const timeline = getTimeline()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showMonthly, setShowMonthly] = useState<string | null>(null)
@@ -52,12 +53,20 @@ export default function SalesPage() {
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">Sales Schedule</h1>
           <p className="text-xs text-slate-400 mt-1">გაყიდვების გეგმა — 60 თვე • VAT {(taxRates.vatRate * 100).toFixed(0)}%</p>
         </div>
-        <button
-          onClick={() => addSalesItem(newItem())}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-        >
-          <Plus size={15} /> პროდუქტის დამატება
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/line-items"
+            className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
+          </Link>
+          <button
+            onClick={() => addSalesItem(newItem())}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Plus size={15} /> {language === 'ka' ? 'პროდუქტის დამატება' : 'Add Product'}
+          </button>
+        </div>
       </div>
 
       {salesItems.length === 0 && (
@@ -95,8 +104,10 @@ export default function SalesPage() {
                   <span className="text-xs text-slate-400">ფასი:</span>
                   <input
                     type="number" min={0} step={1}
+                    inputMode="decimal"
                     value={item.unitPrice}
                     onChange={(e) => updateSalesItem(item.id, { unitPrice: Number(e.target.value) })}
+                    onFocus={(e) => e.target.select()}
                     className="w-24 text-right text-sm font-mono text-blue-700 dark:text-blue-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <span className="text-xs text-slate-400">₾</span>
@@ -184,8 +195,10 @@ export default function SalesPage() {
                                 <td key={c.index} className="px-0.5 py-0.5">
                                   <input
                                     type="number" min={0}
+                                    inputMode="decimal"
                                     value={item.monthlyUnits[c.index] ?? 0}
                                     onChange={(e) => updateUnits(item.id, c.index, Number(e.target.value))}
+                                    onFocus={(e) => e.target.select()}
                                     className="w-14 text-right text-blue-700 dark:text-blue-400 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 bg-white dark:bg-slate-900 outline-none focus:ring-1 focus:ring-blue-500"
                                   />
                                 </td>

@@ -77,6 +77,18 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
     const totalOpex = salaries + pension + otherOpex
     const ebitda = grossProfit - totalOpex
 
+    // Custom Values
+    const customValues: { [key: string]: number } = {}
+    store.opexItems.forEach(item => {
+      if (item.customCategoryId) {
+        let amt = (item.monthlyAmount[col.index] ?? 0) * (sc.opexMultiplier ?? 1)
+        if (item.inflationAdjusted) {
+          amt *= Math.pow(1 + store.ops.inflationRate / 100, col.year - 1)
+        }
+        customValues[item.customCategoryId] = (customValues[item.customCategoryId] || 0) + amt
+      }
+    })
+
     // Depreciation
     let depreciation = 0
     store.capexItems.forEach((item) => {
@@ -111,7 +123,8 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
       revenue, revenueExVat, cogs, grossProfit, grossMargin,
       salaries, pension, otherOpex, totalOpex, ebitda, ebitdaMargin: revenueExVat > 0 ? ebitda / revenueExVat : 0,
       depreciation, ebit, interestExpense, ebt, corporateTax, netIncome,
-      netMargin: revenueExVat > 0 ? netIncome / revenueExVat : 0
+      netMargin: revenueExVat > 0 ? netIncome / revenueExVat : 0,
+      customValues
     }
   })
 }

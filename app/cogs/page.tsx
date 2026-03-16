@@ -63,8 +63,10 @@ export default function CogsPage() {
                           <span className="text-xs text-slate-400">Unit Cost:</span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             value={cogs.unitCost}
                             onChange={(e) => updateCogsItem(cogs.id, { unitCost: Number(e.target.value) })}
+                            onFocus={(e) => e.target.select()}
                             className="w-24 text-right text-sm font-mono font-semibold text-orange-600 dark:text-orange-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-orange-500"
                           />
                         </div>

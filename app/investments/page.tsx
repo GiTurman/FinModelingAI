@@ -83,7 +83,13 @@ export default function InvestmentsPage() {
                   }`}>{item.type}</span>
                 </td>
                 <td className="input-cell">
-                  <input type="number" value={item.amount} onChange={e => updateInvestment(item.id, { amount: Number(e.target.value) })} className="bg-transparent text-right outline-none w-24 font-mono" />
+                  <input
+                    type="number" value={item.amount}
+                    inputMode="decimal"
+                    onChange={e => updateInvestment(item.id, { amount: Number(e.target.value) })}
+                    onFocus={(e) => e.target.select()}
+                    className="bg-transparent text-right outline-none w-24 font-mono focus:ring-1 ring-blue-500 rounded"
+                  />
                 </td>
                 <td>
                   <select value={item.monthIndex} onChange={e => updateInvestment(item.id, { monthIndex: Number(e.target.value) })} className="bg-transparent outline-none text-xs">
@@ -92,12 +98,24 @@ export default function InvestmentsPage() {
                 </td>
                 <td className="input-cell">
                   {item.type === 'Loan' ? (
-                    <input type="number" value={item.interestRate} onChange={e => updateInvestment(item.id, { interestRate: Number(e.target.value) })} className="bg-transparent text-right outline-none w-12 font-mono" />
+                    <input
+                      type="number" value={item.interestRate}
+                      inputMode="decimal"
+                      onChange={e => updateInvestment(item.id, { interestRate: Number(e.target.value) })}
+                      onFocus={(e) => e.target.select()}
+                      className="bg-transparent text-right outline-none w-12 font-mono focus:ring-1 ring-blue-500 rounded"
+                    />
                   ) : '-'}
                 </td>
                 <td className="input-cell">
                   {item.type === 'Loan' ? (
-                    <input type="number" value={item.termMonths} onChange={e => updateInvestment(item.id, { termMonths: Number(e.target.value) })} className="bg-transparent text-right outline-none w-12 font-mono" />
+                    <input
+                      type="number" value={item.termMonths}
+                      inputMode="numeric"
+                      onChange={e => updateInvestment(item.id, { termMonths: Number(e.target.value) })}
+                      onFocus={(e) => e.target.select()}
+                      className="bg-transparent text-right outline-none w-12 font-mono focus:ring-1 ring-blue-500 rounded"
+                    />
                   ) : '-'}
                 </td>
                 <td>

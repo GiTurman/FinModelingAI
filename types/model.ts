@@ -40,10 +40,18 @@ export interface SalesItem {
   vatIncluded: boolean
 }
 
+export interface CustomCategory {
+  id: string
+  name: string
+  statement: 'IS' | 'BS' | 'CF'
+  section: string
+}
+
 export interface OpexItem {
   id: string
   name: string
   category: 'S&M' | 'G&A' | 'R&D' | 'Operations' | 'Other'
+  customCategoryId?: string
   monthlyAmount: number[]
   inflationAdjusted: boolean
 }
@@ -99,6 +107,7 @@ export interface IncomeStatementMonth {
   corporateTax: number
   netIncome: number
   netMargin: number
+  customValues?: { [categoryId: string]: number }
 }
 
 export interface CashFlowMonth {
@@ -116,6 +125,7 @@ export interface CashFlowMonth {
   netCashChange: number
   closingCash: number
   freeCashFlow: number
+  customValues?: { [categoryId: string]: number }
 }
 
 export interface ModelStore {
@@ -126,6 +136,7 @@ export interface ModelStore {
   cogsItems: CogsItem[]
   opexItems: OpexItem[]
   capexItems: CapexItem[]
+  customCategories: CustomCategory[]
   investments: InvestmentItem[]
   scenarios: {
     active: 'base' | 'bull' | 'bear'
@@ -152,6 +163,9 @@ export interface ModelStore {
   addCapexItem: (item: Omit<CapexItem, 'id'>) => void
   updateCapexItem: (id: string, item: Partial<CapexItem>) => void
   removeCapexItem: (id: string) => void
+  addCustomCategory: (item: Omit<CustomCategory, 'id'>) => void
+  updateCustomCategory: (id: string, item: Partial<CustomCategory>) => void
+  removeCustomCategory: (id: string) => void
   addInvestment: (item: Omit<InvestmentItem, 'id'>) => void
   updateInvestment: (id: string, item: Partial<InvestmentItem>) => void
   removeInvestment: (id: string) => void

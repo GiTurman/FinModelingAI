@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { OpexItem } from '@/types/model'
 import { fmtGEL, sumArr } from '@/lib/calculations'
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
+import Link from 'next/link'
 
 const MONTHS = 60
 
@@ -12,15 +13,18 @@ function newItem(): Omit<OpexItem, 'id'> {
   return {
     name: 'New Expense',
     category: 'G&A',
+    customCategoryId: undefined,
     monthlyAmount: Array(MONTHS).fill(0),
     inflationAdjusted: true,
   }
 }
 
 export default function OpexPage() {
-  const { opexItems, addOpexItem, updateOpexItem, removeOpexItem, getTimeline, ops } = useModelStore()
+  const { opexItems, addOpexItem, updateOpexItem, removeOpexItem, getTimeline, ops, customCategories, language } = useModelStore()
   const timeline = getTimeline()
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  const isCategories = customCategories.filter(c => c.statement === 'IS' && c.section === 'OpEx')
 
   const toggleExpand = (id: string) => setExpanded(expanded === id ? null : id)
 
@@ -45,12 +49,20 @@ export default function OpexPage() {
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">OPEX Schedule</h1>
           <p className="text-xs text-slate-400 mt-1">საოპერაციო ხარჯები — 60 თვე • ინფლაცია: {ops.inflationRate}%</p>
         </div>
-        <button
-          onClick={() => addOpexItem(newItem())}
-          className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-        >
-          <Plus size={15} /> ხარჯის დამატება
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/line-items"
+            className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
+          </Link>
+          <button
+            onClick={() => addOpexItem(newItem())}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Plus size={15} /> {language === 'ka' ? 'ხარჯის დამატება' : 'Add Expense'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -77,6 +89,15 @@ export default function OpexPage() {
                   className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none"
                 >
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+
+                <select
+                  value={item.customCategoryId || ''}
+                  onChange={(e) => updateOpexItem(item.id, { customCategoryId: e.target.value || undefined })}
+                  className="text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg px-2 py-1 outline-none text-blue-700 dark:text-blue-300"
+                >
+                  <option value="">Select Line Item</option>
+                  {isCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
 
                 <div className="text-right hidden sm:block w-32">
@@ -149,9 +170,11 @@ export default function OpexPage() {
                             <td key={c.index} className="px-0.5 py-0.5">
                               <input
                                 type="number" min={0}
+                                inputMode="decimal"
                                 value={item.monthlyAmount[c.index] ?? 0}
                                 onChange={(e) => updateAmount(item.id, c.index, Number(e.target.value))}
-                                className="w-12 text-right text-purple-700 dark:text-purple-400 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 bg-white dark:bg-slate-900 outline-none"
+                                onFocus={(e) => e.target.select()}
+                                className="w-12 text-right text-purple-700 dark:text-purple-400 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 bg-white dark:bg-slate-900 outline-none focus:ring-1 ring-purple-500"
                               />
                             </td>
                           ))}

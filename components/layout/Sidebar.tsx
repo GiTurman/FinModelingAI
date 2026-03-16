@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { label: 'Balance Sheet', labelKa: 'ბალანსი', icon: PieChart, href: '/balance-sheet' },
   { label: 'Cash Flow', labelKa: 'ფულადი ნაკადები', icon: Briefcase, href: '/cash-flow' },
   { label: 'Scenarios', labelKa: 'სცენარები', icon: BarChart3, href: '/scenarios' },
+  { label: 'Line Items', labelKa: 'მუხლები', icon: Settings, href: '/line-items' },
   { label: 'Tax & Other', labelKa: 'გადასახადები', icon: Settings, href: '/tax-other' },
 ]
 

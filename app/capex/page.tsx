@@ -3,7 +3,8 @@
 import { useModelStore } from '@/store/modelStore'
 import { CapexItem } from '@/types/model'
 import { fmtGEL, sumArr } from '@/lib/calculations'
-import { Plus, Trash2, HardDrive } from 'lucide-react'
+import { Plus, Trash2, HardDrive, Settings } from 'lucide-react'
+import Link from 'next/link'
 
 function newItem(): Omit<CapexItem, 'id'> {
   return {
@@ -15,7 +16,7 @@ function newItem(): Omit<CapexItem, 'id'> {
 }
 
 export default function CapexPage() {
-  const { capexItems, addCapexItem, updateCapexItem, removeCapexItem, getTimeline } = useModelStore()
+  const { capexItems, addCapexItem, updateCapexItem, removeCapexItem, getTimeline, language } = useModelStore()
   const timeline = getTimeline()
 
   const totalCapex = sumArr(capexItems.map((i) => i.amount))
@@ -30,12 +31,20 @@ export default function CapexPage() {
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">CapEx Schedule</h1>
           <p className="text-xs text-slate-400 mt-1">კაპიტალური დანახარჯები და ამორტიზაცია</p>
         </div>
-        <button
-          onClick={() => addCapexItem(newItem())}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-        >
-          <Plus size={15} /> აქტივის დამატება
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/line-items"
+            className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
+          </Link>
+          <button
+            onClick={() => addCapexItem(newItem())}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Plus size={15} /> {language === 'ka' ? 'აქტივის დამატება' : 'Add Asset'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -84,8 +93,10 @@ export default function CapexPage() {
                 <td className="input-cell">
                   <input
                     type="number" value={item.amount}
+                    inputMode="decimal"
                     onChange={(e) => updateCapexItem(item.id, { amount: Number(e.target.value) })}
-                    className="bg-transparent text-right outline-none w-24 font-mono"
+                    onFocus={(e) => e.target.select()}
+                    className="bg-transparent text-right outline-none w-24 font-mono focus:ring-1 ring-blue-500 rounded"
                   />
                 </td>
                 <td>
@@ -100,8 +111,10 @@ export default function CapexPage() {
                 <td className="input-cell">
                   <input
                     type="number" value={item.usefulLifeMonths}
+                    inputMode="numeric"
                     onChange={(e) => updateCapexItem(item.id, { usefulLifeMonths: Number(e.target.value) })}
-                    className="bg-transparent text-right outline-none w-16 font-mono"
+                    onFocus={(e) => e.target.select()}
+                    className="bg-transparent text-right outline-none w-16 font-mono focus:ring-1 ring-blue-500 rounded"
                   />
                 </td>
                 <td className="font-mono text-slate-400">
