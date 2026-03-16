@@ -66,8 +66,16 @@ export interface InvestmentItem {
   termMonths: number
 }
 
+export interface CogsItem {
+  id: string
+  salesItemId: string
+  name: string
+  unitCost: number
+}
+
 export interface ScenarioConfig {
   revenueMultiplier: number
+  cogsMultiplier: number
   opexMultiplier: number
   capexMultiplier: number
 }
@@ -115,6 +123,7 @@ export interface ModelStore {
   taxRates: TaxRates
   ops: OperationalSettings
   salesItems: SalesItem[]
+  cogsItems: CogsItem[]
   opexItems: OpexItem[]
   capexItems: CapexItem[]
   investments: InvestmentItem[]
@@ -134,6 +143,9 @@ export interface ModelStore {
   addSalesItem: (item: Omit<SalesItem, 'id'>) => void
   updateSalesItem: (id: string, item: Partial<SalesItem>) => void
   removeSalesItem: (id: string) => void
+  addCogsItem: (item: Omit<CogsItem, 'id'>) => void
+  updateCogsItem: (id: string, item: Partial<CogsItem>) => void
+  removeCogsItem: (id: string) => void
   addOpexItem: (item: Omit<OpexItem, 'id'>) => void
   updateOpexItem: (id: string, item: Partial<OpexItem>) => void
   removeOpexItem: (id: string) => void
@@ -150,6 +162,6 @@ export interface ModelStore {
 
   // Computed
   getTimeline: () => MonthColumn[]
-  getIS: () => IncomeStatementMonth[]
-  getCF: () => CashFlowMonth[]
+  getIS: (scenarioType?: 'base' | 'bull' | 'bear') => IncomeStatementMonth[]
+  getCF: (scenarioType?: 'base' | 'bull' | 'bear') => CashFlowMonth[]
 }

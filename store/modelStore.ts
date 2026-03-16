@@ -1,7 +1,7 @@
 // store/modelStore.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { ModelStore, SalesItem, OpexItem, CapexItem, InvestmentItem, ScenarioConfig } from '@/types/model'
+import { ModelStore, SalesItem, CogsItem, OpexItem, CapexItem, InvestmentItem, ScenarioConfig } from '@/types/model'
 import { generateTimeline, buildIS, buildCF } from '@/lib/calculations'
 
 export const useModelStore = create<ModelStore>()(
@@ -28,14 +28,15 @@ export const useModelStore = create<ModelStore>()(
         fxRates: { usd: 2.7, eur: 2.9 },
       },
       salesItems: [],
+      cogsItems: [],
       opexItems: [],
       capexItems: [],
       investments: [],
       scenarios: {
         active: 'base',
-        base: { revenueMultiplier: 1, opexMultiplier: 1, capexMultiplier: 1 },
-        bull: { revenueMultiplier: 1.2, opexMultiplier: 0.9, capexMultiplier: 1 },
-        bear: { revenueMultiplier: 0.7, opexMultiplier: 1.1, capexMultiplier: 1.2 },
+        base: { revenueMultiplier: 1, cogsMultiplier: 1, opexMultiplier: 1, capexMultiplier: 1 },
+        bull: { revenueMultiplier: 1.2, cogsMultiplier: 1.1, opexMultiplier: 0.9, capexMultiplier: 1 },
+        bear: { revenueMultiplier: 0.7, cogsMultiplier: 0.8, opexMultiplier: 1.1, capexMultiplier: 1.2 },
       },
       language: 'ka',
       selectedView: 'monthly',
@@ -53,6 +54,16 @@ export const useModelStore = create<ModelStore>()(
       })),
       removeSalesItem: (id) => set((state) => ({
         salesItems: state.salesItems.filter((i) => i.id !== id)
+      })),
+
+      addCogsItem: (item) => set((state) => ({
+        cogsItems: [...state.cogsItems, { ...item, id: Math.random().toString(36).substr(2, 9) }]
+      })),
+      updateCogsItem: (id, item) => set((state) => ({
+        cogsItems: state.cogsItems.map((i) => (i.id === id ? { ...i, ...item } : i))
+      })),
+      removeCogsItem: (id) => set((state) => ({
+        cogsItems: state.cogsItems.filter((i) => i.id !== id)
       })),
 
       addOpexItem: (item) => set((state) => ({
@@ -98,8 +109,8 @@ export const useModelStore = create<ModelStore>()(
 
       // Computed
       getTimeline: () => generateTimeline(get().config.startDate, get().config.modelLengthMonths),
-      getIS: () => buildIS(get()),
-      getCF: () => buildCF(get(), buildIS(get())),
+      getIS: (scenarioType) => buildIS(get(), scenarioType),
+      getCF: (scenarioType) => buildCF(get(), buildIS(get(), scenarioType), scenarioType),
     }),
     {
       name: 'fm-georgia-storage',

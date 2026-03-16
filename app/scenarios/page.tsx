@@ -1,5 +1,6 @@
 'use client'
 // app/scenarios/page.tsx
+import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
 import { CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react'
@@ -11,22 +12,34 @@ const CONFIGS = {
 }
 
 export default function ScenariosPage() {
-  const { scenarios, setActiveScenario, updateScenario, getIS, getCF } = useModelStore()
+  const scenarios = useModelStore((s) => s.scenarios)
+  const setActiveScenario = useModelStore((s) => s.setActiveScenario)
+  const updateScenario = useModelStore((s) => s.updateScenario)
+  const getIS = useModelStore((s) => s.getIS)
+  const getCF = useModelStore((s) => s.getCF)
+  
+  // Dependency tracking for useMemo
+  const salesItems = useModelStore((s) => s.salesItems)
+  const cogsItems = useModelStore((s) => s.cogsItems)
+  const opexItems = useModelStore((s) => s.opexItems)
+  const capexItems = useModelStore((s) => s.capexItems)
+  const investments = useModelStore((s) => s.investments)
+  const taxRates = useModelStore((s) => s.taxRates)
+  const ops = useModelStore((s) => s.ops)
+  const config = useModelStore((s) => s.config)
 
   // compute summary for each scenario
-  const store = useModelStore.getState()
-  const results = (['base', 'bull', 'bear'] as const).map((type) => {
-    const prev = store.scenarios.active
-    store.setActiveScenario(type)
-    const is = store.getIS()
-    const cf = store.getCF()
-    store.setActiveScenario(prev)
-    const rev = sumArr(is.map((m) => m.revenueExVat))
-    const ni  = sumArr(is.map((m) => m.netIncome))
-    const ebitda = sumArr(is.map((m) => m.ebitda))
-    const cash = cf.length > 0 ? cf[cf.length - 1].closingCash : 0
-    return { type, rev, ni, ebitda, cash }
-  })
+  const results = useMemo(() => {
+    return (['base', 'bull', 'bear'] as const).map((type) => {
+      const is = getIS(type)
+      const cf = getCF(type)
+      const rev = sumArr(is.map((m) => m.revenueExVat))
+      const ni  = sumArr(is.map((m) => m.netIncome))
+      const ebitda = sumArr(is.map((m) => m.ebitda))
+      const cash = cf.length > 0 ? cf[cf.length - 1].closingCash : 0
+      return { type, rev, ni, ebitda, cash }
+    })
+  }, [getIS, getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, scenarios.base, scenarios.bull, scenarios.bear])
 
   return (
     <div className="page-in space-y-6">
@@ -59,6 +72,7 @@ export default function ScenariosPage() {
                 {/* Multipliers */}
                 {[
                   { label: 'Revenue Multiplier', key: 'revenueMultiplier' as const, fmt: (v: number) => `${(v*100).toFixed(0)}%` },
+                  { label: 'COGS Multiplier',    key: 'cogsMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
                   { label: 'OPEX Multiplier',    key: 'opexMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
                   { label: 'CapEx Multiplier',   key: 'capexMultiplier' as const,   fmt: (v: number) => `${(v*100).toFixed(0)}%` },
                 ].map(({ label, key, fmt }) => (

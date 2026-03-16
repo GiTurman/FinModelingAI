@@ -1,44 +1,87 @@
 'use client'
 // app/balance-sheet/page.tsx
+import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { fmtGEL } from '@/lib/calculations'
 import { MonthColumn } from '@/types/model'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 
-function filterCols(cols: MonthColumn[], view: string): MonthColumn[] {
-  if (view === 'annual') return cols.filter((c) => c.monthLabel === 'M1')
-  if (view === 'quarterly') return cols.filter((c) => [1,4,7,10].includes(c.month))
-  return cols
-}
 
 export default function BSPage() {
-  const { getCF, getIS, getTimeline, selectedView, salesItems, taxRates, ops } = useModelStore()
-  const timeline = getTimeline()
-  const cfData = getCF()
-  const isData = getIS()
-  const cols = filterCols(timeline, selectedView)
+  const getCF = useModelStore((s) => s.getCF)
+  const getIS = useModelStore((s) => s.getIS)
+  const getTimeline = useModelStore((s) => s.getTimeline)
+  const selectedView = useModelStore((s) => s.selectedView)
+  const salesItems = useModelStore((s) => s.salesItems)
+  const opexItems = useModelStore((s) => s.opexItems)
+  const capexItems = useModelStore((s) => s.capexItems)
+  const investments = useModelStore((s) => s.investments)
+  const taxRates = useModelStore((s) => s.taxRates)
+  const ops = useModelStore((s) => s.ops)
+  const config = useModelStore((s) => s.config)
+  const activeScenario = useModelStore((s) => s.scenarios.active)
+  const scenarioConfig = useModelStore((s) => s.scenarios[s.scenarios.active])
+
+  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
+  const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const isData = useMemo(() => getIS(), [getIS, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
 
   // Build simple BS from CF closing cash + IS data
-  const bs = cfData.map((cf, i) => {
-    const is = isData[i] ?? { revenueExVat: 0, netIncome: 0, depreciation: 0 }
-    const ar = is.revenueExVat * (ops.dso / 30)
-    const cash = cf.closingCash
-    const totalCurrentAssets = cash + ar
-    const netPPE = 0 // tracked in CAPEX page
-    const totalAssets = totalCurrentAssets + netPPE
+  const bs = useMemo(() => {
+    let runningRetainedEarnings = 0
+    return cfData.map((cf, i) => {
+      const is = isData[i] ?? { revenueExVat: 0, netIncome: 0, depreciation: 0 }
+      const ar = is.revenueExVat * (ops.dso / 30)
+      const cash = cf.closingCash
+      const totalCurrentAssets = cash + ar
+      const netPPE = 0 // tracked in CAPEX page
+      const totalAssets = totalCurrentAssets + netPPE
 
-    const ap = 0
-    const vatPayable = (is.revenueExVat * taxRates.vatRate)
-    const totalCurrentLiab = ap + vatPayable
-    const longTermDebt = cf.openingCash < 0 ? Math.abs(cf.openingCash) : 0
-    const totalLiab = totalCurrentLiab + longTermDebt
+      const ap = 0
+      const vatPayable = (is.revenueExVat * taxRates.vatRate)
+      const totalCurrentLiab = ap + vatPayable
+      const longTermDebt = cf.openingCash < 0 ? Math.abs(cf.openingCash) : 0
+      const totalLiab = totalCurrentLiab + longTermDebt
 
-    const retainedEarnings = isData.slice(0, i+1).reduce((s, m) => s + m.netIncome, 0)
-    const totalEquity = retainedEarnings
-    const check = totalAssets - (totalLiab + totalEquity)
+      runningRetainedEarnings += is.netIncome
+      const totalEquity = runningRetainedEarnings
+      const check = totalAssets - (totalLiab + totalEquity)
 
-    return { cash, ar, totalCurrentAssets, netPPE, totalAssets, ap, vatPayable, totalCurrentLiab, longTermDebt, totalLiab, retainedEarnings, totalEquity, check }
-  })
+      return { cash, ar, totalCurrentAssets, netPPE, totalAssets, ap, vatPayable, totalCurrentLiab, longTermDebt, totalLiab, retainedEarnings: runningRetainedEarnings, totalEquity, check }
+    })
+  }, [cfData, isData, ops.dso, taxRates.vatRate])
+
+  const { cols, displayData } = useMemo(() => {
+    if (selectedView === 'monthly') {
+      return { cols: timeline, displayData: bs }
+    }
+
+    const newCols: any[] = []
+    const newData: any[] = []
+
+    const periodSize = selectedView === 'annual' ? 12 : 3
+    const numPeriods = Math.ceil(bs.length / periodSize)
+
+    for (let i = 0; i < numPeriods; i++) {
+      const lastMonthIdx = Math.min((i + 1) * periodSize - 1, bs.length - 1)
+      const periodEndData = bs[lastMonthIdx]
+      if (!periodEndData) break
+
+      const year = Math.floor((i * periodSize) / 12) + 1
+      const quarter = Math.floor(((i * periodSize) % 12) / 3) + 1
+
+      newCols.push({
+        index: i,
+        label: selectedView === 'annual' ? `Year ${year}` : `Q${quarter} Y${year}`,
+        yearLabel: `Y${year}`,
+        monthLabel: selectedView === 'annual' ? 'Total' : `Q${quarter}`
+      })
+
+      newData.push(periodEndData)
+    }
+
+    return { cols: newCols, displayData: newData }
+  }, [selectedView, timeline, bs])
 
   if (salesItems.length === 0) {
     return <div className="page-in flex items-center justify-center min-h-[50vh] text-slate-400 text-sm">Sales-ში გაყიდვები დაამატეთ</div>
@@ -109,8 +152,8 @@ export default function BSPage() {
                   <td className={`text-left ${row.type === 'indent' ? 'pl-6 text-slate-500' : ''} ${row.type === 'total' ? 'text-white bg-slate-800' : ''}`}>
                     {row.label}
                   </td>
-                  {cols.map((c) => {
-                    const v = bs[c.index]?.[row.key] ?? 0
+                  {cols.map((c, i) => {
+                    const v = displayData[i]?.[row.key] ?? 0
                     return (
                       <td key={c.index} className={`${v < 0 ? 'negative' : ''} ${row.type === 'total' ? 'text-white' : ''}`}>
                         {fmtGEL(v as number)}

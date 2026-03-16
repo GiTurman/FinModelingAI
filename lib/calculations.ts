@@ -30,27 +30,39 @@ export function generateTimeline(startDate: string, length: number): MonthColumn
   })
 }
 
-export function buildIS(store: ModelStore): IncomeStatementMonth[] {
+export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bear'): IncomeStatementMonth[] {
   const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
-  const sc = store.scenarios[store.scenarios.active]
+  const sc = store.scenarios[scenarioType || store.scenarios.active]
 
   return timeline.map((col) => {
     // Revenue
     let revenue = 0
     let revenueExVat = 0
     store.salesItems.forEach((item) => {
-      const units = (item.monthlyUnits[col.index] ?? 0) * sc.revenueMultiplier
+      const units = (item.monthlyUnits[col.index] ?? 0) * (sc.revenueMultiplier ?? 1)
       const price = item.unitPrice
       const rev = units * price
       revenue += rev
       revenueExVat += item.vatIncluded ? rev / (1 + store.taxRates.vatRate) : rev
     })
 
+    // COGS
+    let cogs = 0
+    store.salesItems.forEach((sItem) => {
+      const units = (sItem.monthlyUnits[col.index] ?? 0) * (sc.revenueMultiplier ?? 1)
+      const productCogsItems = store.cogsItems.filter(c => c.salesItemId === sItem.id)
+      const unitCost = productCogsItems.reduce((sum, c) => sum + (c.unitCost ?? 0), 0)
+      cogs += units * unitCost * (sc.cogsMultiplier ?? 1)
+    })
+
+    const grossProfit = revenueExVat - cogs
+    const grossMargin = revenueExVat > 0 ? grossProfit / revenueExVat : 0
+
     // OPEX
     let salaries = 0
     let otherOpex = 0
     store.opexItems.forEach((item) => {
-      let amt = (item.monthlyAmount[col.index] ?? 0) * sc.opexMultiplier
+      let amt = (item.monthlyAmount[col.index] ?? 0) * (sc.opexMultiplier ?? 1)
       if (item.inflationAdjusted) {
         amt *= Math.pow(1 + store.ops.inflationRate / 100, col.year - 1)
       }
@@ -63,12 +75,12 @@ export function buildIS(store: ModelStore): IncomeStatementMonth[] {
 
     const pension = salaries * store.taxRates.pensionRate
     const totalOpex = salaries + pension + otherOpex
-    const ebitda = revenueExVat - totalOpex
+    const ebitda = grossProfit - totalOpex
 
     // Depreciation
     let depreciation = 0
     store.capexItems.forEach((item) => {
-      const monthly = (item.amount * sc.capexMultiplier) / item.usefulLifeMonths
+      const monthly = (item.amount * (sc.capexMultiplier ?? 1)) / item.usefulLifeMonths
       if (col.index >= item.monthIndex && col.index < item.monthIndex + item.usefulLifeMonths) {
         depreciation += monthly
       }
@@ -96,7 +108,7 @@ export function buildIS(store: ModelStore): IncomeStatementMonth[] {
     const netIncome = ebt - corporateTax
 
     return {
-      revenue, revenueExVat, cogs: 0, grossProfit: revenueExVat, grossMargin: 1,
+      revenue, revenueExVat, cogs, grossProfit, grossMargin,
       salaries, pension, otherOpex, totalOpex, ebitda, ebitdaMargin: revenueExVat > 0 ? ebitda / revenueExVat : 0,
       depreciation, ebit, interestExpense, ebt, corporateTax, netIncome,
       netMargin: revenueExVat > 0 ? netIncome / revenueExVat : 0
@@ -104,9 +116,9 @@ export function buildIS(store: ModelStore): IncomeStatementMonth[] {
   })
 }
 
-export function buildCF(store: ModelStore, isData: IncomeStatementMonth[]): CashFlowMonth[] {
+export function buildCF(store: ModelStore, isData: IncomeStatementMonth[], scenarioType?: 'base' | 'bull' | 'bear'): CashFlowMonth[] {
   const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
-  const sc = store.scenarios[store.scenarios.active]
+  const sc = store.scenarios[scenarioType || store.scenarios.active]
   const cf: CashFlowMonth[] = []
 
   let runningCash = 0
@@ -127,7 +139,7 @@ export function buildCF(store: ModelStore, isData: IncomeStatementMonth[]): Cash
     // Investing
     let capexOutflow = 0
     store.capexItems.forEach(item => {
-      if (item.monthIndex === col.index) capexOutflow += item.amount * sc.capexMultiplier
+      if (item.monthIndex === col.index) capexOutflow += item.amount * (sc.capexMultiplier ?? 1)
     })
     const cashFromInv = -capexOutflow
 

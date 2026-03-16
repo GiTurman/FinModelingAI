@@ -1,5 +1,6 @@
 'use client'
 // app/page.tsx
+import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import KPICard from '@/components/dashboard/KPICard'
 import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
@@ -14,23 +15,41 @@ import {
 } from 'recharts'
 
 export default function Dashboard() {
-  const { salesItems, getIS, getCF, getTimeline, scenarios, config } = useModelStore()
-  const timeline = getTimeline()
-  const isData = getIS()
-  const cfData = getCF()
+  const salesItems = useModelStore((s) => s.salesItems)
+  const cogsItems = useModelStore((s) => s.cogsItems)
+  const opexItems = useModelStore((s) => s.opexItems)
+  const capexItems = useModelStore((s) => s.capexItems)
+  const investments = useModelStore((s) => s.investments)
+  const taxRates = useModelStore((s) => s.taxRates)
+  const ops = useModelStore((s) => s.ops)
+  const config = useModelStore((s) => s.config)
+  const scenarios = useModelStore((s) => s.scenarios)
+  const getIS = useModelStore((s) => s.getIS)
+  const getCF = useModelStore((s) => s.getCF)
+  const getTimeline = useModelStore((s) => s.getTimeline)
+
+  const activeScenario = scenarios.active
+  const scenarioConfig = scenarios[activeScenario]
+
+  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
+  const isData = useMemo(() => getIS(), [getIS, salesItems, cogsItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const cfData = useMemo(() => getCF(), [getCF, salesItems, cogsItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
 
   const hasData = salesItems.length > 0
 
-  const totalRevenue = sumArr(isData.map((m) => m.revenueExVat))
-  const totalNetIncome = sumArr(isData.map((m) => m.netIncome))
-  const totalEbitda = sumArr(isData.map((m) => m.ebitda))
-  const endingCash = cfData.length > 0 ? cfData[cfData.length - 1].closingCash : 0
-  const avgGrossMargin = isData.length > 0
-    ? isData.reduce((s, m) => s + m.grossMargin, 0) / isData.filter((m) => m.revenueExVat > 0).length || 0
-    : 0
+  const stats = useMemo(() => {
+    const totalRevenue = sumArr(isData.map((m) => m.revenueExVat))
+    const totalNetIncome = sumArr(isData.map((m) => m.netIncome))
+    const totalEbitda = sumArr(isData.map((m) => m.ebitda))
+    const endingCash = cfData.length > 0 ? cfData[cfData.length - 1].closingCash : 0
+    const avgGrossMargin = isData.length > 0
+      ? isData.reduce((s, m) => s + m.grossMargin, 0) / isData.filter((m) => m.revenueExVat > 0).length || 0
+      : 0
+    return { totalRevenue, totalNetIncome, totalEbitda, endingCash, avgGrossMargin }
+  }, [isData, cfData])
 
   // Annual chart data
-  const annualData = [1,2,3,4,5].map((yr) => {
+  const annualData = useMemo(() => [1,2,3,4,5].map((yr) => {
     const slice = isData.slice((yr-1)*12, yr*12)
     return {
       year: `Y${yr}`,
@@ -38,13 +57,13 @@ export default function Dashboard() {
       ebitda: sumArr(slice.map((m) => m.ebitda)) / 1000,
       netIncome: sumArr(slice.map((m) => m.netIncome)) / 1000,
     }
-  })
+  }), [isData])
 
-  const cashData = cfData.filter((_, i) => i % 3 === 0).map((m, i) => ({
+  const cashData = useMemo(() => cfData.filter((_, i) => i % 3 === 0).map((m, i) => ({
     month: timeline[i * 3]?.label ?? '',
     cash: m.closingCash / 1000,
     fcf: m.freeCashFlow / 1000,
-  }))
+  })), [cfData, timeline])
 
   if (!hasData) {
     return (
@@ -84,11 +103,11 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 relative">
         {[
-          { title: 'შემოსავალი (5Y)', value: fmtGEL(totalRevenue, true), icon: DollarSign, accent: 'blue' as const },
-          { title: 'წმ. მოგება (5Y)', value: fmtGEL(totalNetIncome, true), icon: TrendingUp, accent: totalNetIncome >= 0 ? 'green' as const : 'red' as const },
-          { title: 'EBITDA (5Y)', value: fmtGEL(totalEbitda, true), icon: Activity, accent: 'purple' as const },
-          { title: 'ფულადი ნაშთი', value: fmtGEL(endingCash, true), icon: Wallet, accent: 'teal' as const },
-          { title: 'Gross Margin', value: fmtPct(avgGrossMargin), icon: Building2, accent: 'orange' as const },
+          { title: 'შემოსავალი (5Y)', value: fmtGEL(stats.totalRevenue, true), icon: DollarSign, accent: 'blue' as const },
+          { title: 'წმ. მოგება (5Y)', value: fmtGEL(stats.totalNetIncome, true), icon: TrendingUp, accent: stats.totalNetIncome >= 0 ? 'green' as const : 'red' as const },
+          { title: 'EBITDA (5Y)', value: fmtGEL(stats.totalEbitda, true), icon: Activity, accent: 'purple' as const },
+          { title: 'ფულადი ნაშთი', value: fmtGEL(stats.endingCash, true), icon: Wallet, accent: 'teal' as const },
+          { title: 'Gross Margin', value: fmtPct(stats.avgGrossMargin), icon: Building2, accent: 'orange' as const },
         ].map((k) => (
           <div key={k.title} className="relative">
             <KPICard {...k} />

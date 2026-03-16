@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', labelKa: 'დაშბორდი', icon: LayoutDashboard, href: '/' },
   { label: 'Input', labelKa: 'ინპუტი', icon: Sliders, href: '/input' },
   { label: 'Sales Schedule', labelKa: 'გაყიდვები', icon: DollarSign, href: '/sales' },
+  { label: 'COGS Schedule', labelKa: 'პირდაპირი ხარჯები', icon: TrendingDown, href: '/cogs' },
   { label: 'OPEX Schedule', labelKa: 'საოპერაციო ხარჯები', icon: TrendingDown, href: '/opex' },
   { label: 'CapEx Schedule', labelKa: 'კაპიტალური ხარჯები', icon: HardDrive, href: '/capex' },
   { label: 'Investments', labelKa: 'ინვესტიციები', icon: Landmark, href: '/investments' },

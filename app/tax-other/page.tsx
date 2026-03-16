@@ -34,7 +34,10 @@ export default function TaxOtherPage() {
                   <input
                     type="number" step={0.01}
                     value={taxRates[t.key] * 100}
-                    onChange={e => setTaxRates({ [t.key]: Number(e.target.value) / 100 })}
+                    onChange={e => {
+                      const val = e.target.value === '' ? 0 : Number(e.target.value)
+                      setTaxRates({ [t.key]: val / 100 })
+                    }}
                     className="w-16 text-right text-sm font-mono text-blue-700 dark:text-blue-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none"
                   />
                   <span className="text-xs text-slate-400 w-4">%</span>
@@ -66,7 +69,10 @@ export default function TaxOtherPage() {
                   <input
                     type="number"
                     value={ops[o.key]}
-                    onChange={e => setOps({ [o.key]: Number(e.target.value) })}
+                    onChange={e => {
+                      const val = e.target.value === '' ? 0 : Number(e.target.value)
+                      setOps({ [o.key]: val })
+                    }}
                     className="w-16 text-right text-sm font-mono text-purple-700 dark:text-purple-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none"
                   />
                   <span className="text-xs text-slate-400 w-8">{o.unit}</span>
@@ -89,7 +95,10 @@ export default function TaxOtherPage() {
                 <input
                   type="number" step={0.001}
                   value={ops.fxRates[fx.key]}
-                  onChange={e => setOps({ fxRates: { ...ops.fxRates, [fx.key]: Number(e.target.value) } })}
+                  onChange={e => {
+                    const val = e.target.value === '' ? 0 : Number(e.target.value)
+                    setOps({ fxRates: { ...ops.fxRates, [fx.key]: val } })
+                  }}
                   className="w-20 text-right text-sm font-mono text-emerald-700 dark:text-emerald-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none"
                 />
               </div>
