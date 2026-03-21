@@ -1,333 +1,488 @@
-// lib/calculations.ts
-import { ModelStore, IncomeStatementMonth, CashFlowMonth, BalanceSheetMonth } from '@/types/model'
-import { generateTimeline, TimePeriod } from './time'
+import { 
+  ModelStore, 
+  IncomeStatementMonth, 
+  BalanceSheetMonth, 
+  CashFlowMonth,
+  SalesItem,
+  OpexItem,
+  CapexItem,
+  InvestmentItem
+} from '@/types/model'
+import { FinancialStore, FinancialResults, MonthlyValues } from '@/types/financial-store'
+import { generateTimeline } from './time'
 
-export const fmtGEL = (val: number, compact = false): string => {
-  if (!compact) {
-    const abs = Math.abs(val)
-    const fmt = abs.toLocaleString('ka-GE', { maximumFractionDigits: 0 })
-    return val < 0 ? `(${fmt} ₾)` : `${fmt} ₾`
+// --- Utility Functions ---
+
+export function fmtGEL(val: number, showSymbol: boolean = true): string {
+  if (!showSymbol) {
+    return new Intl.NumberFormat('ka-GE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(val)
   }
-  const abs = Math.abs(val)
-  const str =
-    abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(1)}M`
-    : abs >= 1_000   ? `${(abs / 1_000).toFixed(0)}K`
-    : abs.toFixed(0)
-  return val < 0 ? `(${str} ₾)` : `${str} ₾`
+  return new Intl.NumberFormat('ka-GE', {
+    style: 'currency',
+    currency: 'GEL',
+    maximumFractionDigits: 0,
+  }).format(val)
 }
 
-export const sumArr = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
-export const fmtPct = (val: number) => `${(val * 100).toFixed(1)}%`
+export function fmtPct(val: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(val)
+}
 
-export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bear'): IncomeStatementMonth[] {
-  const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
-  const sc = store.scenarios[scenarioType || store.scenarios.active]
+export function sumArr(arr: number[]): number {
+  return arr.reduce((a, b) => a + b, 0)
+}
 
-  return timeline.map((col) => {
-    // Revenue
+// --- Statement Builders for existing pages (ModelStore) ---
+
+export function buildIS(store: ModelStore, scenarioOverride?: 'base' | 'bull' | 'bear'): IncomeStatementMonth[] {
+  const { config, salesItems, opexItems, capexItems, taxRates, investments, scenarios } = store
+  const timeline = generateTimeline(config.startDate, config.modelLengthMonths)
+  const activeScenario = scenarios[scenarioOverride || scenarios.active]
+
+  return timeline.map((period, i) => {
+    // 1. Revenue
     let revenue = 0
     let revenueExVat = 0
-    store.salesItems.forEach((item) => {
-      const units = (item.monthlyUnits[col.index] ?? 0) * (sc.revenueMultiplier ?? 1)
-      const rev = units * item.unitPrice
-      revenue += rev
-      revenueExVat += item.vatIncluded ? rev / (1 + store.taxRates.vatRate) : rev
+    salesItems.forEach(item => {
+      const units = (item.monthlyUnits[i] || 0) * activeScenario.revenueMultiplier
+      const amount = units * item.unitPrice
+      revenue += amount
+      if (item.vatIncluded) {
+        revenueExVat += amount / (1 + taxRates.vatRate)
+      } else {
+        revenueExVat += amount
+      }
     })
 
-    // COGS
+    // 2. COGS
     let cogs = 0
-    store.salesItems.forEach((sItem) => {
-      const units = (sItem.monthlyUnits[col.index] ?? 0) * (sc.revenueMultiplier ?? 1)
-      const productCogsItems = store.cogsItems.filter(c => c.salesItemId === sItem.id)
-      const unitCost = productCogsItems.reduce((sum, c) => sum + (c.unitCost ?? 0), 0)
-      cogs += units * unitCost * (sc.cogsMultiplier ?? 1)
+    store.cogsItems.forEach(item => {
+      const salesItem = salesItems.find(s => s.id === item.salesItemId)
+      if (salesItem) {
+        const units = (salesItem.monthlyUnits[i] || 0) * activeScenario.revenueMultiplier
+        cogs += units * item.unitCost * activeScenario.cogsMultiplier
+      }
     })
 
     const grossProfit = revenueExVat - cogs
     const grossMargin = revenueExVat > 0 ? grossProfit / revenueExVat : 0
 
-    // OPEX
+    // 3. OPEX
     let salaries = 0
     let otherOpex = 0
-    store.opexItems.forEach((item) => {
-      let amt = (item.monthlyAmount[col.index] ?? 0) * (sc.opexMultiplier ?? 1)
-      // Monthly compounding — col.index = months elapsed from start
-      if (item.inflationAdjusted && store.ops.inflationRate > 0) {
-        amt *= Math.pow(1 + store.ops.inflationRate / 100, col.index / 12)
+    const customValues: Record<string, number> = {}
+
+    opexItems.forEach(item => {
+      let amount = (item.monthlyAmount[i] || 0) * activeScenario.opexMultiplier
+      if (item.inflationAdjusted) {
+        const yearsPassed = Math.floor(i / 12)
+        amount *= Math.pow(1 + store.ops.inflationRate / 100, yearsPassed)
       }
-      // Use explicit isSalary flag — not fragile name detection
+
       if (item.isSalary) {
-        salaries += amt
+        salaries += amount
+      } else if (item.customCategoryId) {
+        customValues[item.customCategoryId] = (customValues[item.customCategoryId] || 0) + amount
       } else {
-        otherOpex += amt
+        otherOpex += amount
       }
     })
 
-    // Georgia pension law: employer pays 2% only (employee 2% is deducted from gross)
-    // taxRates.pensionRate = 0.04 (combined), employer portion = half
-    const pension = salaries * (store.taxRates.pensionRate / 2)
-
-    const totalOpex = salaries + pension + otherOpex
+    const pension = salaries * taxRates.pensionRate
+    const totalOpex = salaries + pension + otherOpex + Object.values(customValues).reduce((a, b) => a + b, 0)
     const ebitda = grossProfit - totalOpex
     const ebitdaMargin = revenueExVat > 0 ? ebitda / revenueExVat : 0
 
-    // Custom Values
-    const customValues: Record<string, number> = {}
-    store.opexItems.forEach(item => {
-      if (item.customCategoryId) {
-        let amt = (item.monthlyAmount[col.index] ?? 0) * (sc.opexMultiplier ?? 1)
-        if (item.inflationAdjusted && store.ops.inflationRate > 0) {
-          amt *= Math.pow(1 + store.ops.inflationRate / 100, col.index / 12)
-        }
-        customValues[item.customCategoryId] = (customValues[item.customCategoryId] || 0) + amt
-      }
-    })
-
-    // Depreciation
+    // 4. Depreciation
     let depreciation = 0
-    store.capexItems.forEach((item) => {
-      const depreciable = (item.amount * (sc.capexMultiplier ?? 1)) - (item.residualValue ?? 0)
-      const monthly = depreciable / Math.max(item.usefulLifeMonths, 1)
-      if (col.index >= item.monthIndex && col.index < item.monthIndex + item.usefulLifeMonths) {
-        depreciation += monthly
+    capexItems.forEach(item => {
+      if (i >= item.monthIndex) {
+        const monthsDepreciated = i - item.monthIndex
+        if (monthsDepreciated < item.usefulLifeMonths) {
+          depreciation += (item.amount - item.residualValue) / item.usefulLifeMonths
+        }
       }
     })
 
     const ebit = ebitda - depreciation
 
-    // Interest — true annuity amortization schedule
+    // 5. Interest
     let interestExpense = 0
-    store.investments.forEach((inv) => {
-      if (inv.type !== 'Loan') return
-      if (col.index <= inv.monthIndex) return
-      if (col.index > inv.monthIndex + inv.termMonths) return
-      const r = inv.interestRate / 100 / 12
-      const n = inv.termMonths
-      if (r === 0 || n === 0) return
-      const mElapsed = col.index - inv.monthIndex - 1 // periods before this payment
-      // Outstanding balance at start of this period
-      const balance = inv.amount
-        * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
-        / (Math.pow(1 + r, n) - 1)
-      interestExpense += balance * r
+    investments.forEach(inv => {
+      if (inv.type === 'Loan' && i >= inv.monthIndex && i < inv.monthIndex + inv.termMonths) {
+        interestExpense += (inv.amount * (inv.interestRate / 100)) / 12
+      }
     })
 
     const ebt = ebit - interestExpense
+    
+    // 6. Tax (Estonian Model - simplified for IS)
+    const corporateTax = 0 
 
-    // Georgian CIT — Estonian Model (Tax Code Art. 97)
-    // Corporate tax is NOT levied on retained earnings monthly.
-    // CIT (15%) applies ONLY when profits are distributed as dividends.
-    // Monthly IS correctly shows corporateTax = 0.
-    // Actual CIT cash outflow is modeled via DividendDeclaration in Cash Flow.
-    const corporateTax = 0
-    const netIncome = ebt
+    const netIncome = ebt - corporateTax
+    const netMargin = revenueExVat > 0 ? netIncome / revenueExVat : 0
 
     return {
-      ...col,
-      revenue, revenueExVat, cogs, grossProfit, grossMargin,
-      salaries, pension, otherOpex, totalOpex,
-      ebitda, ebitdaMargin,
-      depreciation, ebit, interestExpense, ebt,
-      corporateTax, netIncome,
-      netMargin: revenueExVat > 0 ? netIncome / revenueExVat : 0,
+      ...period,
+      revenue,
+      revenueExVat,
+      cogs,
+      grossProfit,
+      grossMargin,
+      salaries,
+      pension,
+      otherOpex,
+      totalOpex,
+      ebitda,
+      ebitdaMargin,
+      depreciation,
+      ebit,
+      interestExpense,
+      ebt,
+      corporateTax,
+      netIncome,
+      netMargin,
       customValues
     }
   })
 }
 
-export function buildCF(
-  store: ModelStore,
-  isData: IncomeStatementMonth[],
-  scenarioType?: 'base' | 'bull' | 'bear'
-): CashFlowMonth[] {
-  const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
-  const sc = store.scenarios[scenarioType || store.scenarios.active]
-  const cf: CashFlowMonth[] = []
-  let runningCash = 0
+export function buildBS(store: ModelStore, isData?: IncomeStatementMonth[], cfData?: CashFlowMonth[], scenarioOverride?: 'base' | 'bull' | 'bear'): BalanceSheetMonth[] {
+  const is = isData || buildIS(store, scenarioOverride)
+  const { config, capexItems, investments, ops } = store
+  const timeline = generateTimeline(config.startDate, config.modelLengthMonths)
 
-  timeline.forEach((col, i) => {
-    const is = isData[i]
-    const openingCash = runningCash
+  let cumulativeRetainedEarnings = 0
 
-    // Operations
-    const netIncome = is.netIncome
-    const depreciation = is.depreciation
-    // AR — cash tied up in receivables (DSO-based)
-    const ar = is.revenueExVat * (store.ops.dso / 30)
-    const prevAr = i > 0 ? isData[i - 1].revenueExVat * (store.ops.dso / 30) : 0
-    const deltaAR = -(ar - prevAr) // increase in AR = cash outflow
-    // AP — cash saved by delaying supplier payments (DPO-based)
-    const totalPurchases = is.cogs + is.totalOpex
-    const prevPurchases = i > 0 ? isData[i - 1].cogs + isData[i - 1].totalOpex : 0
-    const ap = totalPurchases * (store.ops.dpo / 30)
-    const prevAp = prevPurchases * (store.ops.dpo / 30)
-    const deltaAP = ap - prevAp // increase in AP = cash inflow
-    const changeInWC = deltaAR + deltaAP
-    const cashFromOps = netIncome + depreciation + changeInWC
+  return timeline.map((period, i) => {
+    const monthIS = is[i]
+    cumulativeRetainedEarnings += monthIS.netIncome
 
-    // Investing
-    let capexOutflow = 0
-    store.capexItems.forEach(item => {
-      if (item.monthIndex === col.index) {
-        capexOutflow += item.amount * (sc.capexMultiplier ?? 1)
+    const accountsReceivable = monthIS.revenue * (ops.dso / 30)
+    
+    let netPPE = 0
+    capexItems.forEach(item => {
+      if (i >= item.monthIndex) {
+        const monthsDepreciated = Math.min(i - item.monthIndex + 1, item.usefulLifeMonths)
+        const depPerMonth = (item.amount - item.residualValue) / item.usefulLifeMonths
+        netPPE += Math.max(item.amount - (monthsDepreciated * depPerMonth), item.residualValue)
       }
     })
-    const cashFromInv = -capexOutflow
 
-    // Financing
+    const accountsPayable = monthIS.totalOpex * (ops.dpo / 30)
+    
+    let longTermDebt = 0
+    let currentPaidInCapital = 0
+    investments.forEach(inv => {
+      if (inv.type === 'Loan' && i >= inv.monthIndex) {
+        const monthsPassed = i - inv.monthIndex + 1
+        const principalRepaid = (inv.amount / inv.termMonths) * Math.min(monthsPassed, inv.termMonths)
+        longTermDebt += Math.max(inv.amount - principalRepaid, 0)
+      } else if (inv.type === 'Equity' && i >= inv.monthIndex) {
+        currentPaidInCapital += inv.amount
+      }
+    })
+
+    const totalEquity = currentPaidInCapital + cumulativeRetainedEarnings
+    const totalLiabilities = accountsPayable + longTermDebt
+    const otherAssets = accountsReceivable + netPPE
+    
+    // Use cfData if available for cash, otherwise approximate
+    const cash = cfData ? cfData[i].closingCash : Math.max(totalEquity + totalLiabilities - otherAssets, 0)
+
+    const totalAssets = cash + accountsReceivable + netPPE
+    const totalLiabilitiesEquity = totalLiabilities + totalEquity
+
+    return {
+      ...period,
+      cash,
+      accountsReceivable,
+      inventory: 0,
+      currentAssets: cash + accountsReceivable,
+      netPPE,
+      totalAssets,
+      accountsPayable,
+      currentLiabilities: accountsPayable,
+      longTermDebt,
+      totalLiabilities,
+      paidInCapital: currentPaidInCapital,
+      retainedEarnings: cumulativeRetainedEarnings,
+      totalEquity,
+      totalLiabilitiesEquity,
+      check: totalAssets - totalLiabilitiesEquity
+    }
+  })
+}
+
+export function buildCF(store: ModelStore, isData?: IncomeStatementMonth[], scenarioOverride?: 'base' | 'bull' | 'bear'): CashFlowMonth[] {
+  const is = isData || buildIS(store, scenarioOverride)
+  const { config, capexItems, investments, ops } = store
+  const timeline = generateTimeline(config.startDate, config.modelLengthMonths)
+
+  let prevCash = 0
+  let prevAR = 0
+  let prevAP = 0
+
+  return timeline.map((period, i) => {
+    const monthIS = is[i]
+    
+    const accountsReceivable = monthIS.revenue * (ops.dso / 30)
+    const accountsPayable = monthIS.totalOpex * (ops.dpo / 30)
+
+    const changeInAR = accountsReceivable - prevAR
+    const changeInAP = accountsPayable - prevAP
+    const changeInWC = changeInAP - changeInAR
+
+    const cashFromOps = monthIS.netIncome + monthIS.depreciation + changeInWC
+
+    let capexOutflow = 0
+    capexItems.forEach(item => {
+      if (item.monthIndex === i) {
+        capexOutflow += item.amount
+      }
+    })
+
     let equityIn = 0
     let loanIn = 0
     let loanOut = 0
-
-    store.investments.forEach(inv => {
-      // Inflows
-      if (inv.monthIndex === col.index) {
-        if (inv.type === 'Equity' || inv.type === 'Grant') equityIn += inv.amount
+    investments.forEach(inv => {
+      if (inv.monthIndex === i) {
+        if (inv.type === 'Equity') equityIn += inv.amount
         if (inv.type === 'Loan') loanIn += inv.amount
       }
-
-      // Annuity principal repayments (interest already in IS as expense)
-      if (inv.type === 'Loan' && col.index > inv.monthIndex
-          && col.index <= inv.monthIndex + inv.termMonths) {
-        const r = inv.interestRate / 100 / 12
-        const n = inv.termMonths
-        if (r === 0 || n === 0) {
-          loanOut += inv.amount / n
-        } else {
-          const mElapsed = col.index - inv.monthIndex - 1
-          const balance = inv.amount
-            * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
-            / (Math.pow(1 + r, n) - 1)
-          const interest = balance * r
-          const pmt = inv.amount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1)
-          loanOut += pmt - interest // principal portion only
-        }
+      if (inv.type === 'Loan' && i >= inv.monthIndex && i < inv.monthIndex + inv.termMonths) {
+        loanOut += inv.amount / inv.termMonths
       }
     })
 
-    // CIT and withholding on dividends (Georgian Estonian model)
-    let citOnDistribution = 0
-    let dividendWithholding = 0
-    if (store.dividendDeclarations) {
-      store.dividendDeclarations.forEach(decl => {
-        // Pay CIT in month 0 of the declared year
-        const declMonthStart = (decl.year - 1) * 12
-        if (col.index === declMonthStart) {
-          citOnDistribution += decl.amount * store.taxRates.corporateTaxRate
-          const net = decl.amount - citOnDistribution
-          dividendWithholding += net * store.taxRates.dividendTaxRate
-        }
-      })
+    const cashFromFin = equityIn + loanIn - loanOut
+    const netCashChange = cashFromOps - capexOutflow + cashFromFin
+    const closingCash = prevCash + netCashChange
+
+    const res = {
+      ...period,
+      openingCash: prevCash,
+      netIncome: monthIS.netIncome,
+      depreciation: monthIS.depreciation,
+      changeInWC,
+      cashFromOps,
+      capexOutflow,
+      cashFromInv: -capexOutflow,
+      equityIn,
+      loanIn,
+      loanOut,
+      cashFromFin,
+      netCashChange,
+      closingCash,
+      freeCashFlow: cashFromOps - capexOutflow
     }
 
-    const cashFromFin = equityIn + loanIn - loanOut - citOnDistribution - dividendWithholding
-    const netCashChange = cashFromOps + cashFromInv + cashFromFin
-    const closingCash = openingCash + netCashChange
-    const freeCashFlow = cashFromOps - capexOutflow
-
-    cf.push({
-      ...col,
-      openingCash, netIncome, depreciation, changeInWC, cashFromOps,
-      capexOutflow, cashFromInv,
-      equityIn, loanIn, loanOut, cashFromFin,
-      netCashChange, closingCash, freeCashFlow,
-    })
-
-    runningCash = closingCash
+    prevCash = closingCash
+    prevAR = accountsReceivable
+    prevAP = accountsPayable
+    return res
   })
-
-  return cf
 }
 
-export function buildBS(
-  store: ModelStore,
-  isData: IncomeStatementMonth[],
-  cfData: CashFlowMonth[],
-  scenarioType?: 'base' | 'bull' | 'bear'
-): BalanceSheetMonth[] {
-  const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
-  const sc = store.scenarios[scenarioType || store.scenarios.active]
-  let cumulativeRetainedEarnings = 0
-  let totalPaidInCapital = 0
+/**
+ * მთავარი ფუნქცია, რომელიც აწარმოებს 60-თვიან ფინანსურ მოდელირებას.
+ * @param inputs - Zustand store-ის მიმდინარე მდგომარეობა (მხოლოდ inputs ნაწილი).
+ * @returns გამოთვლილი P&L, Balance Sheet და Cash Flow.
+ */
+export function calculateModel(
+  inputs: FinancialStore['inputs']
+): FinancialResults {
+  const MONTHS = 60;
 
-  return timeline.map((col, i) => {
-    const is = isData[i]
-    const cf = cfData[i]
+  // --- ინიციალიზაცია ---
+  const pnl = initializePnl(MONTHS);
+  const balanceSheet = initializeBalanceSheet(MONTHS);
+  const cashFlow = initializeCashFlow(MONTHS);
 
-    // Assets
-    const cash = cf.closingCash
-    const accountsReceivable = is.revenueExVat * (store.ops.dso / 30)
-    const inventory = 0 // Placeholder
-    const currentAssets = cash + accountsReceivable + inventory
+  // დამხმარე ცვლადები PPE-სთვის
+  const accumulatedDepreciation: MonthlyValues = new Array(MONTHS).fill(0);
+  const grossPPE: MonthlyValues = new Array(MONTHS).fill(0);
 
-    let netPPE = 0
-    store.capexItems.forEach(item => {
-      const itemCost = item.amount * (sc.capexMultiplier ?? 1)
-      if (i >= item.monthIndex) {
-        const monthsDepreciated = Math.min(i - item.monthIndex + 1, item.usefulLifeMonths)
-        const depreciable = itemCost - (item.residualValue ?? 0)
-        const monthlyDep = depreciable / Math.max(item.usefulLifeMonths, 1)
-        const accumulatedDepreciation = monthlyDep * monthsDepreciated
-        netPPE += Math.max(0, itemCost - accumulatedDepreciation)
-      }
-    })
+  // --- მთავარი ციკლი (60 თვე) ---
+  for (let month = 0; month < MONTHS; month++) {
+    // 1. P&L-ის გამოთვლა (Accrual Basis)
 
-    const totalAssets = currentAssets + netPPE
+    // Revenue & COGS
+    let monthlyRevenue = 0;
+    let monthlyCogs = 0;
 
-    // Liabilities
-    const accountsPayable = (is.cogs + is.totalOpex) * (store.ops.dpo / 30)
-    const currentLiabilities = accountsPayable // Plus current portion of LTD
+    for (const sale of inputs.sales) {
+      const seasonalityFactor = sale.seasonality[month % 12] || 1;
+      const units = sale.monthlyBaseUnits * Math.pow(1 + sale.growthRate, month) * seasonalityFactor;
+      
+      monthlyRevenue += units * sale.unitPrice;
+      monthlyCogs += units * sale.unitCost;
+    }
 
-    let longTermDebt = 0
-    store.investments.forEach(inv => {
-      if (inv.type !== 'Loan') return
-      if (i < inv.monthIndex) return
+    pnl.revenue[month] = monthlyRevenue;
+    pnl.cogs[month] = monthlyCogs;
+    pnl.grossProfit[month] = monthlyRevenue - monthlyCogs;
 
-      const r = inv.interestRate / 100 / 12
-      const n = inv.termMonths
-      const mElapsed = i - inv.monthIndex + 1
-
-      if (mElapsed > n) return // Loan paid off
-
-      if (r === 0) {
-        longTermDebt += inv.amount * (1 - mElapsed / n)
-        return
-      }
-
-      const balance = inv.amount
-        * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
-        / (Math.pow(1 + r, n) - 1)
-      longTermDebt += balance
-    })
-
-    const totalLiabilities = currentLiabilities + longTermDebt
-
-    // Equity
-    totalPaidInCapital += cf.equityIn
-    cumulativeRetainedEarnings += is.netIncome
-
-    // Dividends reduce retained earnings
-    if (store.dividendDeclarations) {
-      store.dividendDeclarations.forEach(decl => {
-        const declMonthStart = (decl.year - 1) * 12
-        if (i === declMonthStart) {
-          // Full declared amount reduces RE. The cash outflow is handled in CF.
-          cumulativeRetainedEarnings -= decl.amount
+    // Operating Expenses (OPEX)
+    let monthlyOpex = 0;
+    for (const opex of inputs.opex) {
+      if (month >= opex.startDate && month <= opex.endDate) {
+        if (opex.category === 'fixed') {
+          monthlyOpex += opex.amount;
+        } else {
+          monthlyOpex += (opex.amount / 100) * monthlyRevenue;
         }
-      })
+      }
     }
+    pnl.operatingExpenses[month] = monthlyOpex;
+    pnl.ebitda[month] = pnl.grossProfit[month] - monthlyOpex;
 
-    const retainedEarnings = cumulativeRetainedEarnings
-    const totalEquity = totalPaidInCapital + retainedEarnings
-    const totalLiabilitiesEquity = totalLiabilities + totalEquity
-    const check = totalAssets - totalLiabilitiesEquity
-
-    return {
-      ...col,
-      cash, accountsReceivable, inventory, currentAssets, netPPE, totalAssets,
-      accountsPayable, currentLiabilities, longTermDebt, totalLiabilities,
-      paidInCapital: totalPaidInCapital, retainedEarnings, totalEquity,
-      totalLiabilitiesEquity, check
+    // Depreciation (Straight-line)
+    let monthlyDepreciation = 0;
+    for (const capex of inputs.capex) {
+      if (month > capex.purchaseMonth) {
+        const monthsSinceStart = month - capex.purchaseMonth;
+        if (monthsSinceStart <= capex.usefulLifeMonths) {
+          monthlyDepreciation += capex.amount / capex.usefulLifeMonths;
+        }
+      }
     }
-  })
+    pnl.depreciation[month] = monthlyDepreciation;
+    pnl.ebit[month] = pnl.ebitda[month] - monthlyDepreciation;
+    pnl.earningsBeforeTax[month] = pnl.ebit[month]; 
+
+    // Georgian Tax System (Estonian Model)
+    const dividend = inputs.dividends.find(d => d.month === month)?.amount || 0;
+    const monthlyIncomeTax = (dividend / 0.85) * 0.15;
+    
+    pnl.incomeTax[month] = monthlyIncomeTax;
+    pnl.netIncome[month] = pnl.earningsBeforeTax[month] - monthlyIncomeTax;
+
+    // 2. Balance Sheet & Cash Flow
+    const prevGrossPPE = month > 0 ? grossPPE[month - 1] : 0;
+    const monthlyCapex = inputs.capex
+      .filter(c => c.purchaseMonth === month)
+      .reduce((sum, c) => sum + c.amount, 0);
+    
+    grossPPE[month] = prevGrossPPE + monthlyCapex;
+    
+    const prevAccDep = month > 0 ? accumulatedDepreciation[month - 1] : 0;
+    accumulatedDepreciation[month] = prevAccDep + monthlyDepreciation;
+    
+    balanceSheet.propertyPlantEquipment[month] = grossPPE[month] - accumulatedDepreciation[month];
+
+    balanceSheet.accountsReceivable[month] = (monthlyRevenue / 30) * inputs.global.accountsReceivableDays;
+    balanceSheet.accountsPayable[month] = (monthlyCogs / 30) * inputs.global.accountsPayableDays;
+
+    const prevAR = month > 0 ? balanceSheet.accountsReceivable[month - 1] : 0;
+    const prevAP = month > 0 ? balanceSheet.accountsPayable[month - 1] : 0;
+    
+    const deltaAR = balanceSheet.accountsReceivable[month] - prevAR;
+    const deltaAP = balanceSheet.accountsPayable[month] - prevAP;
+    cashFlow.changeInWorkingCapital[month] = deltaAR - deltaAP;
+
+    cashFlow.netIncome[month] = pnl.netIncome[month];
+    cashFlow.depreciation[month] = pnl.depreciation[month];
+    
+    cashFlow.cashFromOperations[month] = 
+      cashFlow.netIncome[month] + 
+      cashFlow.depreciation[month] - 
+      cashFlow.changeInWorkingCapital[month];
+
+    cashFlow.capex[month] = -monthlyCapex;
+    cashFlow.cashFromInvesting[month] = cashFlow.capex[month];
+
+    cashFlow.dividendsPaid[month] = -dividend;
+    cashFlow.incomeTaxPaid[month] = -monthlyIncomeTax;
+    cashFlow.cashFromFinancing[month] = cashFlow.dividendsPaid[month] + cashFlow.incomeTaxPaid[month];
+
+    cashFlow.netCashFlow[month] = 
+      cashFlow.cashFromOperations[month] + 
+      cashFlow.cashFromInvesting[month] + 
+      cashFlow.cashFromFinancing[month];
+
+    const beginningCash = month === 0 ? inputs.global.initialCash : cashFlow.endingCash[month - 1];
+    cashFlow.beginningCash[month] = beginningCash;
+    cashFlow.endingCash[month] = beginningCash + cashFlow.netCashFlow[month];
+
+    balanceSheet.cash[month] = cashFlow.endingCash[month];
+
+    balanceSheet.totalLiabilities[month] = balanceSheet.accountsPayable[month];
+    balanceSheet.shareCapital[month] = month === 0 ? 0 : balanceSheet.shareCapital[month - 1]; 
+    
+    const prevRE = month === 0 ? 0 : balanceSheet.retainedEarnings[month - 1];
+    balanceSheet.retainedEarnings[month] = prevRE + pnl.netIncome[month];
+    balanceSheet.totalEquity[month] = balanceSheet.shareCapital[month] + balanceSheet.retainedEarnings[month];
+
+    balanceSheet.totalAssets[month] = 
+      balanceSheet.cash[month] + 
+      balanceSheet.accountsReceivable[month] + 
+      balanceSheet.propertyPlantEquipment[month];
+    
+    balanceSheet.totalLiabilitiesAndEquity[month] = 
+      balanceSheet.totalLiabilities[month] + 
+      balanceSheet.totalEquity[month];
+  }
+
+  return {
+    pnl,
+    balanceSheet,
+    cashFlow,
+  };
+}
+
+// --- დამხმარე ფუნქციები ინიციალიზაციისთვის ---
+
+function initializePnl(months: number): FinancialResults['pnl'] {
+  return {
+    revenue: new Array(months).fill(0),
+    cogs: new Array(months).fill(0),
+    grossProfit: new Array(months).fill(0),
+    operatingExpenses: new Array(months).fill(0),
+    ebitda: new Array(months).fill(0),
+    depreciation: new Array(months).fill(0),
+    ebit: new Array(months).fill(0),
+    earningsBeforeTax: new Array(months).fill(0),
+    incomeTax: new Array(months).fill(0),
+    netIncome: new Array(months).fill(0),
+  };
+}
+
+function initializeBalanceSheet(months: number): FinancialResults['balanceSheet'] {
+  return {
+    cash: new Array(months).fill(0),
+    accountsReceivable: new Array(months).fill(0),
+    propertyPlantEquipment: new Array(months).fill(0),
+    totalAssets: new Array(months).fill(0),
+    accountsPayable: new Array(months).fill(0),
+    totalLiabilities: new Array(months).fill(0),
+    shareCapital: new Array(months).fill(0),
+    retainedEarnings: new Array(months).fill(0),
+    totalEquity: new Array(months).fill(0),
+    totalLiabilitiesAndEquity: new Array(months).fill(0),
+  };
+}
+
+function initializeCashFlow(months: number): FinancialResults['cashFlow'] {
+  return {
+    netIncome: new Array(months).fill(0),
+    depreciation: new Array(months).fill(0),
+    changeInWorkingCapital: new Array(months).fill(0),
+    cashFromOperations: new Array(months).fill(0),
+    capex: new Array(months).fill(0),
+    cashFromInvesting: new Array(months).fill(0),
+    dividendsPaid: new Array(months).fill(0),
+    incomeTaxPaid: new Array(months).fill(0),
+    cashFromFinancing: new Array(months).fill(0),
+    netCashFlow: new Array(months).fill(0),
+    beginningCash: new Array(months).fill(0),
+    endingCash: new Array(months).fill(0),
+  };
 }
