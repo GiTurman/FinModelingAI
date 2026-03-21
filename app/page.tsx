@@ -3,7 +3,8 @@
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import KPICard from '@/components/dashboard/KPICard'
-import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
+import { fmtGEL, fmtPct, sumArr, buildIS, buildCF } from '@/lib/calculations'
+import { generateTimeline } from '@/lib/time'
 import { ModelStore, IncomeStatementMonth, CashFlowMonth } from '@/types/model'
 import {
   DollarSign, TrendingUp, Activity, Wallet,
@@ -16,25 +17,15 @@ import {
 } from 'recharts'
 
 export default function Dashboard() {
-  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
-  const cogsItems = useModelStore((s: ModelStore) => s.cogsItems)
-  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
-  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
-  const investments = useModelStore((s: ModelStore) => s.investments)
-  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
-  const ops = useModelStore((s: ModelStore) => s.ops)
-  const config = useModelStore((s: ModelStore) => s.config)
-  const scenarios = useModelStore((s: ModelStore) => s.scenarios)
-  const getIS = useModelStore((s: ModelStore) => s.getIS)
-  const getCF = useModelStore((s: ModelStore) => s.getCF)
-  const getTimeline = useModelStore((s: ModelStore) => s.getTimeline)
+  const store = useModelStore()
+  const { salesItems, scenarios, language, config } = store
 
   const activeScenario = scenarios.active
   const scenarioConfig = scenarios[activeScenario]
 
-  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
-  const isData = useMemo(() => getIS(), [getIS, salesItems, cogsItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
-  const cfData = useMemo(() => getCF(), [getCF, salesItems, cogsItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const timeline = useMemo(() => generateTimeline(config.startDate, config.modelLengthMonths), [config.startDate, config.modelLengthMonths])
+  const isData = useMemo(() => buildIS(store), [store])
+  const cfData = useMemo(() => buildCF(store, isData), [store, isData])
 
   const hasData = salesItems.length > 0
 
@@ -72,17 +63,17 @@ export default function Dashboard() {
         <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-5">
           <Activity size={34} className="text-blue-600" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">ფინანსური მოდელი</h2>
-        <p className="text-slate-400 mb-2 text-sm">{config.territory} • {config.currency} • {config.modelLengthMonths} თვე</p>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{language === 'ka' ? 'ფინანსური მოდელი' : 'Financial Model'}</h2>
+        <p className="text-slate-400 mb-2 text-sm">{config.territory} • {config.currency} • {config.modelLengthMonths} {language === 'ka' ? 'თვე' : 'months'}</p>
         <p className="text-slate-500 mb-8 max-w-sm text-sm">
-          დაიწყეთ Input-ის შეყვანით, შემდეგ Sales-ში გაყიდვების პლანის დამატებით.
+          {language === 'ka' ? 'დაიწყეთ Input-ის შეყვანით, შემდეგ Sales-ში გაყიდვების პლანის დამატებით.' : 'Start by entering Inputs, then add sales plan in Sales.'}
         </p>
         <div className="flex gap-3">
           <Link href="/input" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            <PlusCircle size={16} /> Input-ის შეყვანა
+            <PlusCircle size={16} /> {language === 'ka' ? 'Input-ის შეყვანა' : 'Enter Inputs'}
           </Link>
           <Link href="/sales" className="flex items-center gap-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            <DollarSign size={16} /> გაყიდვების დამატება
+            <DollarSign size={16} /> {language === 'ka' ? 'გაყიდვების დამატება' : 'Add Sales'}
           </Link>
         </div>
       </div>
@@ -93,22 +84,22 @@ export default function Dashboard() {
     <div className="page-in space-y-5">
       {/* Scenario badge */}
       <div className="flex items-center gap-2">
-        <h1 className="text-lg font-bold text-slate-800 dark:text-white">ფინანსური დაშბორდი</h1>
+        <h1 className="text-lg font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'ფინანსური დაშბორდი' : 'Financial Dashboard'}</h1>
         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
           scenarios.active === 'bull' ? 'bg-emerald-100 text-emerald-700' :
           scenarios.active === 'bear' ? 'bg-red-100 text-red-700' :
           'bg-blue-100 text-blue-700'
-        }`}>{scenarios.active.toUpperCase()} SCENARIO</span>
+        }`}>{language === 'ka' ? (scenarios.active === 'base' ? 'ბაზისური სცენარი' : scenarios.active === 'bull' ? 'ოპტიმისტური სცენარი' : 'პესიმისტური სცენარი') : `${scenarios.active.toUpperCase()} SCENARIO`}</span>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 relative">
         {[
-          { title: 'შემოსავალი (5Y)', value: fmtGEL(stats.totalRevenue, true), icon: DollarSign, accent: 'blue' as const },
-          { title: 'წმ. მოგება (5Y)', value: fmtGEL(stats.totalNetIncome, true), icon: TrendingUp, accent: stats.totalNetIncome >= 0 ? 'green' as const : 'red' as const },
+          { title: language === 'ka' ? 'შემოსავალი (5Y)' : 'Revenue (5Y)', value: fmtGEL(stats.totalRevenue, true), icon: DollarSign, accent: 'blue' as const },
+          { title: language === 'ka' ? 'წმ. მოგება (5Y)' : 'Net Income (5Y)', value: fmtGEL(stats.totalNetIncome, true), icon: TrendingUp, accent: stats.totalNetIncome >= 0 ? 'green' as const : 'red' as const },
           { title: 'EBITDA (5Y)', value: fmtGEL(stats.totalEbitda, true), icon: Activity, accent: 'purple' as const },
-          { title: 'ფულადი ნაშთი', value: fmtGEL(stats.endingCash, true), icon: Wallet, accent: 'teal' as const },
-          { title: 'Gross Margin', value: fmtPct(stats.avgGrossMargin), icon: Building2, accent: 'orange' as const },
+          { title: language === 'ka' ? 'ფულადი ნაშთი' : 'Ending Cash', value: fmtGEL(stats.endingCash, true), icon: Wallet, accent: 'teal' as const },
+          { title: language === 'ka' ? 'საერთო მარჟა' : 'Gross Margin', value: fmtPct(stats.avgGrossMargin), icon: Building2, accent: 'orange' as const },
         ].map((k) => (
           <div key={k.title} className="relative">
             <KPICard {...k} />
@@ -119,22 +110,22 @@ export default function Dashboard() {
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">შემოსავალი / EBITDA / წმ. მოგება (K ₾)</h3>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">{language === 'ka' ? 'შემოსავალი / EBITDA / წმ. მოგება (K ₾)' : 'Revenue / EBITDA / Net Income (K ₾)'}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={annualData} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="year" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => `${v.toFixed(0)}K ₾`} />
-              <Bar dataKey="revenue" name="შემოსავალი" fill="#2563eb" radius={[3,3,0,0]} />
+              <Bar dataKey="revenue" name={language === 'ka' ? 'შემოსავალი' : 'Revenue'} fill="#2563eb" radius={[3,3,0,0]} />
               <Bar dataKey="ebitda" name="EBITDA" fill="#7c3aed" radius={[3,3,0,0]} />
-              <Bar dataKey="netIncome" name="წმ.მოგება" fill="#16a34a" radius={[3,3,0,0]} />
+              <Bar dataKey="netIncome" name={language === 'ka' ? 'წმ.მოგება' : 'Net Income'} fill="#16a34a" radius={[3,3,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">ფულადი ნაშთი (K ₾)</h3>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">{language === 'ka' ? 'ფულადი ნაშთი (K ₾)' : 'Cash Balance (K ₾)'}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={cashData}>
               <defs>
@@ -147,7 +138,7 @@ export default function Dashboard() {
               <XAxis dataKey="month" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => `${v.toFixed(0)}K ₾`} />
-              <Area type="monotone" dataKey="cash" name="ნაშთი" stroke="#2563eb" strokeWidth={2} fill="url(#cashGrad)" />
+              <Area type="monotone" dataKey="cash" name={language === 'ka' ? 'ნაშთი' : 'Balance'} stroke="#2563eb" strokeWidth={2} fill="url(#cashGrad)" />
               <Area type="monotone" dataKey="fcf" name="FCF" stroke="#16a34a" strokeWidth={1.5} fill="none" strokeDasharray="4 3" />
             </AreaChart>
           </ResponsiveContainer>
@@ -156,20 +147,20 @@ export default function Dashboard() {
 
       {/* Summary table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-4">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">წლიური რეზიუმე</h3>
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">{language === 'ka' ? 'წლიური რეზიუმე' : 'Annual Summary'}</h3>
         <div className="overflow-x-auto">
           <table className="fm-table">
             <thead>
               <tr>
-                <th className="text-left">მეტრიკა</th>
-                {[1,2,3,4,5].map((y) => <th key={y}>Y{y}</th>)}
+                <th className="text-left">{language === 'ka' ? 'მეტრიკა' : 'Metric'}</th>
+                {[1,2,3,4,5].map((y) => <th key={y}>{language === 'ka' ? `წ${y}` : `Y${y}`}</th>)}
               </tr>
             </thead>
             <tbody>
               {[
-                { label: 'შემოსავალი', key: 'revenueExVat' as const },
+                { label: language === 'ka' ? 'შემოსავალი' : 'Revenue', key: 'revenueExVat' as const },
                 { label: 'EBITDA', key: 'ebitda' as const },
-                { label: 'წმ. მოგება', key: 'netIncome' as const },
+                { label: language === 'ka' ? 'წმ. მოგება' : 'Net Income', key: 'netIncome' as const },
               ].map((row: { label: string, key: keyof IncomeStatementMonth }) => (
                 <tr key={row.label}>
                   <td className="text-left">{row.label}</td>
@@ -180,7 +171,7 @@ export default function Dashboard() {
                 </tr>
               ))}
               <tr className="row-subtotal">
-                <td className="text-left">EBITDA Margin</td>
+                <td className="text-left">{language === 'ka' ? 'EBITDA მარჟა' : 'EBITDA Margin'}</td>
                 {[1,2,3,4,5].map((yr: number) => {
                   const slice = isData.slice((yr-1)*12, yr*12)
                   const rev = sumArr(slice.map((m: IncomeStatementMonth) => m.revenueExVat))

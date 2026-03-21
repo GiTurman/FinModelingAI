@@ -2,30 +2,29 @@
 import { ModelStore, IncomeStatementMonth, CashFlowMonth, BalanceSheetMonth } from '@/types/model'
 import { generateTimeline, TimePeriod } from './time'
 
-export const sumArr = (arr: number[]): number => arr.reduce((a, b) => a + b, 0)
-export const fmtPct = (v: number): string => `${(v * 100).toFixed(1)}%`
-
-export const fmtGEL = (v: number, compact = false): string => {
+export const fmtGEL = (val: number, compact = false): string => {
   if (!compact) {
-    const abs = Math.abs(v)
+    const abs = Math.abs(val)
     const fmt = abs.toLocaleString('ka-GE', { maximumFractionDigits: 0 })
-    return v < 0 ? `(${fmt} ₾)` : `${fmt} ₾`
+    return val < 0 ? `(${fmt} ₾)` : `${fmt} ₾`
   }
-  const abs = Math.abs(v)
-  const str = abs >= 1_000_000
-    ? `${(abs / 1_000_000).toFixed(1)}M`
-    : abs >= 1_000
-    ? `${(abs / 1_000).toFixed(0)}K`
+  const abs = Math.abs(val)
+  const str =
+    abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(1)}M`
+    : abs >= 1_000   ? `${(abs / 1_000).toFixed(0)}K`
     : abs.toFixed(0)
-  return v < 0 ? `(${str} ₾)` : `${str} ₾`
+  return val < 0 ? `(${str} ₾)` : `${str} ₾`
 }
+
+export const sumArr = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
+export const fmtPct = (val: number) => `${(val * 100).toFixed(1)}%`
 
 export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bear'): IncomeStatementMonth[] {
   const timeline = generateTimeline(store.config.startDate, store.config.modelLengthMonths)
   const sc = store.scenarios[scenarioType || store.scenarios.active]
 
   return timeline.map((col) => {
-    // ── Revenue ──────────────────────────────────────────
+    // Revenue
     let revenue = 0
     let revenueExVat = 0
     store.salesItems.forEach((item) => {
@@ -35,7 +34,7 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
       revenueExVat += item.vatIncluded ? rev / (1 + store.taxRates.vatRate) : rev
     })
 
-    // ── COGS ─────────────────────────────────────────────
+    // COGS
     let cogs = 0
     store.salesItems.forEach((sItem) => {
       const units = (sItem.monthlyUnits[col.index] ?? 0) * (sc.revenueMultiplier ?? 1)
@@ -47,16 +46,16 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
     const grossProfit = revenueExVat - cogs
     const grossMargin = revenueExVat > 0 ? grossProfit / revenueExVat : 0
 
-    // ── OPEX ─────────────────────────────────────────────
-    // Uses isSalary field (not fragile name check)
+    // OPEX
     let salaries = 0
     let otherOpex = 0
     store.opexItems.forEach((item) => {
       let amt = (item.monthlyAmount[col.index] ?? 0) * (sc.opexMultiplier ?? 1)
-      // Monthly compounding inflation: months elapsed / 12
+      // Monthly compounding — col.index = months elapsed from start
       if (item.inflationAdjusted && store.ops.inflationRate > 0) {
         amt *= Math.pow(1 + store.ops.inflationRate / 100, col.index / 12)
       }
+      // Use explicit isSalary flag — not fragile name detection
       if (item.isSalary) {
         salaries += amt
       } else {
@@ -64,16 +63,15 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
       }
     })
 
-    // Georgia pension: employer pays 2% only (not full 4%)
-    // Employee's 2% is deducted from gross salary, not an additional employer cost
-    const employerPensionRate = store.taxRates.pensionRate / 2  // 0.04 / 2 = 0.02
-    const pension = salaries * employerPensionRate
+    // Georgia pension law: employer pays 2% only (employee 2% is deducted from gross)
+    // taxRates.pensionRate = 0.04 (combined), employer portion = half
+    const pension = salaries * (store.taxRates.pensionRate / 2)
 
     const totalOpex = salaries + pension + otherOpex
     const ebitda = grossProfit - totalOpex
     const ebitdaMargin = revenueExVat > 0 ? ebitda / revenueExVat : 0
 
-    // ── Custom Values ─────────────────────────────────────
+    // Custom Values
     const customValues: Record<string, number> = {}
     store.opexItems.forEach(item => {
       if (item.customCategoryId) {
@@ -85,10 +83,10 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
       }
     })
 
-    // ── Depreciation ──────────────────────────────────────
+    // Depreciation
     let depreciation = 0
     store.capexItems.forEach((item) => {
-      const depreciable = item.amount * (sc.capexMultiplier ?? 1) - (item.residualValue ?? 0)
+      const depreciable = (item.amount * (sc.capexMultiplier ?? 1)) - (item.residualValue ?? 0)
       const monthly = depreciable / Math.max(item.usefulLifeMonths, 1)
       if (col.index >= item.monthIndex && col.index < item.monthIndex + item.usefulLifeMonths) {
         depreciation += monthly
@@ -97,37 +95,32 @@ export function buildIS(store: ModelStore, scenarioType?: 'base' | 'bull' | 'bea
 
     const ebit = ebitda - depreciation
 
-    // ── Interest — ANNUITY amortization schedule ──────────
+    // Interest — true annuity amortization schedule
     let interestExpense = 0
     store.investments.forEach((inv) => {
       if (inv.type !== 'Loan') return
       if (col.index <= inv.monthIndex) return
       if (col.index > inv.monthIndex + inv.termMonths) return
-
       const r = inv.interestRate / 100 / 12
       const n = inv.termMonths
-      const mElapsed = col.index - inv.monthIndex  // months since drawdown
-
-      if (r === 0) {
-        // Zero-interest loan: equal principal, no interest
-        return
-      }
-      // Outstanding balance at start of this month (before payment)
+      if (r === 0 || n === 0) return
+      const mElapsed = col.index - inv.monthIndex - 1 // periods before this payment
+      // Outstanding balance at start of this period
       const balance = inv.amount
-        * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed - 1))
+        * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
         / (Math.pow(1 + r, n) - 1)
       interestExpense += balance * r
     })
 
     const ebt = ebit - interestExpense
 
-    // ── Georgian CIT (Estonian Model) ────────────────────
-    // CIT is NOT applied monthly on retained earnings.
-    // CIT triggers ONLY when dividends are declared.
-    // Monthly IS shows zero CIT — tax cost appears in the year dividends are paid.
-    // This is the correct treatment per Georgian Tax Code Art. 97.
-    const corporateTax = 0  // See DividendDeclaration for actual CIT timing
-    const netIncome = ebt  // Pre-tax = post-tax for undistributed profits
+    // Georgian CIT — Estonian Model (Tax Code Art. 97)
+    // Corporate tax is NOT levied on retained earnings monthly.
+    // CIT (15%) applies ONLY when profits are distributed as dividends.
+    // Monthly IS correctly shows corporateTax = 0.
+    // Actual CIT cash outflow is modeled via DividendDeclaration in Cash Flow.
+    const corporateTax = 0
+    const netIncome = ebt
 
     return {
       ...col,
@@ -156,25 +149,23 @@ export function buildCF(
     const is = isData[i]
     const openingCash = runningCash
 
-    // ── Operating CF ──────────────────────────────────────
+    // Operations
     const netIncome = is.netIncome
     const depreciation = is.depreciation
-
-    // AR based on DSO (days / 30 = months of revenue outstanding)
+    // AR — cash tied up in receivables (DSO-based)
     const ar = is.revenueExVat * (store.ops.dso / 30)
-    const prevAr = i > 0 ? (isData[i - 1].revenueExVat * (store.ops.dso / 30)) : 0
-    const deltaAR = -(ar - prevAr)  // increase in AR = cash outflow (negative)
-
-    // AP based on DPO (delay in paying suppliers)
-    const totalCogs = is.cogs + is.totalOpex
-    const ap = totalCogs * (store.ops.dpo / 30)
-    const prevAp = i > 0 ? ((isData[i - 1].cogs + isData[i - 1].totalOpex) * (store.ops.dpo / 30)) : 0
-    const deltaAP = ap - prevAp   // increase in AP = cash inflow (positive)
-
+    const prevAr = i > 0 ? isData[i - 1].revenueExVat * (store.ops.dso / 30) : 0
+    const deltaAR = -(ar - prevAr) // increase in AR = cash outflow
+    // AP — cash saved by delaying supplier payments (DPO-based)
+    const totalPurchases = is.cogs + is.totalOpex
+    const prevPurchases = i > 0 ? isData[i - 1].cogs + isData[i - 1].totalOpex : 0
+    const ap = totalPurchases * (store.ops.dpo / 30)
+    const prevAp = prevPurchases * (store.ops.dpo / 30)
+    const deltaAP = ap - prevAp // increase in AP = cash inflow
     const changeInWC = deltaAR + deltaAP
     const cashFromOps = netIncome + depreciation + changeInWC
 
-    // ── Investing CF ─────────────────────────────────────
+    // Investing
     let capexOutflow = 0
     store.capexItems.forEach(item => {
       if (item.monthIndex === col.index) {
@@ -183,49 +174,48 @@ export function buildCF(
     })
     const cashFromInv = -capexOutflow
 
-    // ── Financing CF ─────────────────────────────────────
+    // Financing
     let equityIn = 0
     let loanIn = 0
-    let loanOut = 0  // principal repayment only (interest is in IS/operating)
+    let loanOut = 0
 
     store.investments.forEach(inv => {
-      // Inflows on drawdown month
+      // Inflows
       if (inv.monthIndex === col.index) {
         if (inv.type === 'Equity' || inv.type === 'Grant') equityIn += inv.amount
         if (inv.type === 'Loan') loanIn += inv.amount
       }
 
-      // Annuity principal repayments for active loans
+      // Annuity principal repayments (interest already in IS as expense)
       if (inv.type === 'Loan' && col.index > inv.monthIndex
           && col.index <= inv.monthIndex + inv.termMonths) {
         const r = inv.interestRate / 100 / 12
         const n = inv.termMonths
-        const mElapsed = col.index - inv.monthIndex
-
-        if (r === 0) {
-          loanOut += inv.amount / n  // Zero-interest: equal principal
-          return
+        if (r === 0 || n === 0) {
+          loanOut += inv.amount / n
+        } else {
+          const mElapsed = col.index - inv.monthIndex - 1
+          const balance = inv.amount
+            * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
+            / (Math.pow(1 + r, n) - 1)
+          const interest = balance * r
+          const pmt = inv.amount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1)
+          loanOut += pmt - interest // principal portion only
         }
-        const balance = inv.amount
-          * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed - 1))
-          / (Math.pow(1 + r, n) - 1)
-        const interest = balance * r
-        const pmt = inv.amount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1)
-        loanOut += pmt - interest  // Principal portion of annuity payment
       }
     })
 
-    // CIT on dividends declared this month
+    // CIT and withholding on dividends (Georgian Estonian model)
     let citOnDistribution = 0
     let dividendWithholding = 0
     if (store.dividendDeclarations) {
       store.dividendDeclarations.forEach(decl => {
-        // Convert model year to month range
+        // Pay CIT in month 0 of the declared year
         const declMonthStart = (decl.year - 1) * 12
-        // Pay CIT in the first month of the declaration year
         if (col.index === declMonthStart) {
-          citOnDistribution = decl.amount * store.taxRates.corporateTaxRate
-          dividendWithholding = (decl.amount - citOnDistribution) * store.taxRates.dividendTaxRate
+          citOnDistribution += decl.amount * store.taxRates.corporateTaxRate
+          const net = decl.amount - citOnDistribution
+          dividendWithholding += net * store.taxRates.dividendTaxRate
         }
       })
     }

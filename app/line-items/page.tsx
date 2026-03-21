@@ -16,7 +16,8 @@ export default function LineItemsPage() {
     addCustomCategory({
       name: newName,
       statement: newStatement,
-      section: newSection
+      section: newSection,
+      type: newSection === 'COGS' ? 'cogs' : 'opex'
     })
     setNewName('')
   }
@@ -67,9 +68,9 @@ export default function LineItemsPage() {
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm outline-none"
             >
-              <option value="IS">Income Statement</option>
-              <option value="BS">Balance Sheet</option>
-              <option value="CF">Cash Flow</option>
+              <option value="IS">{language === 'ka' ? 'მოგება-ზარალი' : 'Income Statement'}</option>
+              <option value="BS">{language === 'ka' ? 'ბალანსი' : 'Balance Sheet'}</option>
+              <option value="CF">{language === 'ka' ? 'ფულადი ნაკადები' : 'Cash Flow'}</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -98,7 +99,7 @@ export default function LineItemsPage() {
           <div key={stmt} className="space-y-3">
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              {stmt === 'IS' ? 'Income Statement' : stmt === 'BS' ? 'Balance Sheet' : 'Cash Flow'}
+              {stmt === 'IS' ? (language === 'ka' ? 'მოგება-ზარალი' : 'Income Statement') : stmt === 'BS' ? (language === 'ka' ? 'ბალანსი' : 'Balance Sheet') : (language === 'ka' ? 'ფულადი ნაკადები' : 'Cash Flow')}
             </h2>
             <div className="space-y-2">
               {customCategories.filter((c: CustomCategory) => c.statement === stmt).map((cat: CustomCategory) => (
@@ -116,7 +117,7 @@ export default function LineItemsPage() {
                 </div>
               ))}
               {customCategories.filter((c: CustomCategory) => c.statement === stmt).length === 0 && (
-                <p className="text-xs text-slate-400 italic py-2">No custom items defined</p>
+                <p className="text-xs text-slate-400 italic py-2">{language === 'ka' ? 'მუხლები არ არის დამატებული' : 'No custom items defined'}</p>
               )}
             </div>
           </div>

@@ -58,10 +58,10 @@ export default function Sidebar() {
 
       <div className="p-4 border-t border-white/5">
         <div className="bg-white/5 rounded-xl p-3">
-          <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Status</p>
+          <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{language === 'ka' ? 'სტატუსი' : 'Status'}</p>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-medium text-slate-300">Model Active</span>
+            <span className="text-[10px] font-medium text-slate-300">{language === 'ka' ? 'მოდელი აქტიურია' : 'Model Active'}</span>
           </div>
         </div>
       </div>

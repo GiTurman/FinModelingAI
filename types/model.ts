@@ -1,6 +1,8 @@
 // types/model.ts
 import { TimePeriod } from '@/lib/time'
 
+export type MonthColumn = TimePeriod
+
 export interface Config {
   modelName: string
   currency: string
@@ -22,10 +24,7 @@ export interface Ops {
   defaultLoanRate: number
   dso: number // Days Sales Outstanding
   dpo: number // Days Payable Outstanding
-  fxRates: {
-    usd: number
-    eur: number
-  }
+  fxRates: { [key: string]: number }
 }
 
 export interface SalesItem {
@@ -35,6 +34,13 @@ export interface SalesItem {
   unitPrice: number
   vatIncluded: boolean
   monthlyUnits: number[]
+}
+
+export interface DividendDeclaration {
+  id: string
+  year: number
+  amount: number
+  description: string
 }
 
 export interface CogsItem {
@@ -47,11 +53,11 @@ export interface CogsItem {
 export interface OpexItem {
   id: string
   name: string
-  category: 'G&A' | 'S&M' | 'R&D'
+  category: 'S&M' | 'G&A' | 'R&D' | 'Operations' | 'Other'
   customCategoryId?: string
   monthlyAmount: number[]
   inflationAdjusted: boolean
-  isSalary: boolean // ADDED
+  isSalary: boolean
 }
 
 export interface CapexItem {
@@ -60,7 +66,7 @@ export interface CapexItem {
   amount: number
   monthIndex: number
   usefulLifeMonths: number
-  residualValue: number // ADDED
+  residualValue: number
 }
 
 export interface InvestmentItem {
@@ -68,14 +74,15 @@ export interface InvestmentItem {
   name: string
   type: 'Equity' | 'Loan' | 'Grant'
   amount: number
-  monthIndex: number // VERIFIED
-  interestRate: number // VERIFIED
-  termMonths: number // VERIFIED
+  monthIndex: number
+  interestRate: number
+  termMonths: number
 }
 
 export interface CustomCategory {
   id: string
   name: string
+  type: 'opex' | 'cogs'
   statement: 'IS' | 'BS' | 'CF'
   section: string
 }
@@ -85,14 +92,6 @@ export interface Scenario {
   cogsMultiplier: number
   opexMultiplier: number
   capexMultiplier: number
-}
-
-// ADDED
-export interface DividendDeclaration {
-  id: string
-  year: number          // 1-5 (model year)
-  amount: number        // GEL amount declared
-  description: string
 }
 
 export interface ModelStore {
@@ -111,23 +110,13 @@ export interface ModelStore {
     bull: Scenario
     bear: Scenario
   }
-  dividendDeclarations: DividendDeclaration[] // ADDED
-  language: 'en' | 'ka'
-  setLanguage: (lang: 'en' | 'ka') => void
-  selectedView: 'monthly' | 'quarterly' | 'annual'
-  setSelectedView: (view: 'monthly' | 'quarterly' | 'annual') => void
-
-  // Helper getters
-  getTimeline: () => TimePeriod[]
-  getIS: (scenario?: 'base' | 'bull' | 'bear') => IncomeStatementMonth[]
-  getCF: (scenario?: 'base' | 'bull' | 'bear') => CashFlowMonth[]
 
   // Actions
   setConfig: (config: Partial<Config>) => void
   setTaxRates: (taxRates: Partial<TaxRates>) => void
   setOps: (ops: Partial<Ops>) => void
   setActiveScenario: (scenario: 'base' | 'bull' | 'bear') => void
-  updateScenario: (scenario: 'base' | 'bull' | 'bear', multipliers: Partial<Scenario>) => void
+  setScenarioMultipliers: (scenario: 'base' | 'bull' | 'bear', multipliers: Partial<Scenario>) => void
 
   addSalesItem: (item: Omit<SalesItem, 'id'>) => void
   updateSalesItem: (id: string, item: Partial<SalesItem>) => void
@@ -148,14 +137,18 @@ export interface ModelStore {
   addInvestment: (item: Omit<InvestmentItem, 'id'>) => void
   updateInvestment: (id: string, item: Partial<InvestmentItem>) => void
   removeInvestment: (id: string) => void
+  dividendDeclarations: DividendDeclaration[]
+  addDividendDeclaration: (item: Omit<DividendDeclaration, 'id'>) => void
+  removeDividendDeclaration: (id: string) => void
 
   addCustomCategory: (item: Omit<CustomCategory, 'id'>) => void
   updateCustomCategory: (id: string, item: Partial<CustomCategory>) => void
   removeCustomCategory: (id: string) => void
 
-  addDividendDeclaration: (item: Omit<DividendDeclaration, 'id'>) => void
-  updateDividendDeclaration: (id: string, item: Partial<DividendDeclaration>) => void
-  removeDividendDeclaration: (id: string) => void
+  language: 'en' | 'ka'
+  selectedView: 'monthly' | 'quarterly' | 'annual'
+  setLanguage: (lang: 'en' | 'ka') => void
+  setSelectedView: (view: 'monthly' | 'quarterly' | 'annual') => void
 
   hydrate: (data: Partial<ModelStore>) => void
 }
@@ -217,5 +210,3 @@ export interface BalanceSheetMonth extends TimePeriod {
   totalLiabilitiesEquity: number
   check: number
 }
-
-export type MonthColumn = TimePeriod

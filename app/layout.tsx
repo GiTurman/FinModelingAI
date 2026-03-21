@@ -4,6 +4,18 @@ import { ThemeProvider } from 'next-themes'
 import Sidebar from '@/components/layout/Sidebar'
 import Topbar from '@/components/layout/Topbar'
 import StoreProvider from '@/components/layout/StoreProvider'
+import { Sora, IBM_Plex_Mono } from 'next/font/google'
+
+const sora = Sora({
+  subsets: ['latin'],
+  variable: '--font-sans',
+})
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-mono',
+})
 
 export const metadata: Metadata = {
   title: 'FM — Georgia Financial Model',
@@ -13,12 +25,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ka" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <body className={`${sora.variable} ${ibmPlexMono.variable} font-sans antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <StoreProvider>
             <div className="flex h-screen overflow-hidden">

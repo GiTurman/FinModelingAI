@@ -2,7 +2,7 @@
 // app/scenarios/page.tsx
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
-import { fmtGEL, fmtPct, sumArr } from '@/lib/calculations'
+import { fmtGEL, fmtPct, sumArr, buildIS, buildCF } from '@/lib/calculations'
 import { ModelStore, IncomeStatementMonth, CashFlowMonth } from '@/types/model'
 import { CheckCircle2, TrendingUp, TrendingDown, Scale } from 'lucide-react'
 
@@ -13,40 +13,27 @@ const CONFIGS = {
 }
 
 export default function ScenariosPage() {
-  const scenarios = useModelStore((s: ModelStore) => s.scenarios)
-  const setActiveScenario = useModelStore((s: ModelStore) => s.setActiveScenario)
-  const updateScenario = useModelStore((s: ModelStore) => s.updateScenario)
-  const getIS = useModelStore((s: ModelStore) => s.getIS)
-  const getCF = useModelStore((s: ModelStore) => s.getCF)
-  
-  // Dependency tracking for useMemo
-  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
-  const cogsItems = useModelStore((s: ModelStore) => s.cogsItems)
-  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
-  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
-  const investments = useModelStore((s: ModelStore) => s.investments)
-  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
-  const ops = useModelStore((s: ModelStore) => s.ops)
-  const config = useModelStore((s: ModelStore) => s.config)
+  const store = useModelStore()
+  const { scenarios, setActiveScenario, setScenarioMultipliers, language } = store
 
   // compute summary for each scenario
   const results = useMemo(() => {
     return (['base', 'bull', 'bear'] as const).map((type) => {
-      const is = getIS(type)
-      const cf = getCF(type)
+      const is = buildIS(store, type)
+      const cf = buildCF(store, is, type)
       const rev = sumArr(is.map((m: IncomeStatementMonth) => m.revenueExVat))
       const ni  = sumArr(is.map((m: IncomeStatementMonth) => m.netIncome))
       const ebitda = sumArr(is.map((m: IncomeStatementMonth) => m.ebitda))
       const cash = cf.length > 0 ? cf[cf.length - 1].closingCash : 0
       return { type, rev, ni, ebitda, cash }
     })
-  }, [getIS, getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, scenarios.base, scenarios.bull, scenarios.bear])
+  }, [store])
 
   return (
     <div className="page-in space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Scenarios</h1>
-        <p className="text-xs text-slate-400 mt-1">Base / Bull / Bear — სცენარების შედარება</p>
+        <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'სცენარები' : 'Scenarios'}</h1>
+        <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? 'Base / Bull / Bear — სცენარების შედარება' : 'Base / Bull / Bear — Scenario Comparison'}</p>
       </div>
 
       {/* Cards */}
@@ -62,9 +49,9 @@ export default function ScenariosPage() {
             <div key={type} className={`bg-white dark:bg-slate-900 rounded-2xl border-2 transition-all ${isActive ? cfg.border + ' shadow-lg' : 'border-slate-200 dark:border-slate-700'}`}>
               <div className={`bg-gradient-to-r ${cfg.grad} rounded-t-xl p-4 flex items-start justify-between`}>
                 <div>
-                  <p className="text-white/70 text-xs mb-1">Scenario</p>
-                  <h3 className="text-white font-bold text-lg">{cfg.labelKa}</h3>
-                  <p className="text-white/60 text-xs">{cfg.label}</p>
+                  <p className="text-white/70 text-xs mb-1">{language === 'ka' ? 'სცენარი' : 'Scenario'}</p>
+                  <h3 className="text-white font-bold text-lg">{language === 'ka' ? cfg.labelKa : cfg.label}</h3>
+                  <p className="text-white/60 text-xs">{language === 'ka' ? cfg.label : cfg.labelKa}</p>
                 </div>
                 <Icon size={26} className="text-white/60" />
               </div>
@@ -72,10 +59,10 @@ export default function ScenariosPage() {
               <div className="p-4 space-y-3">
                 {/* Multipliers */}
                 {[
-                  { label: 'Revenue Multiplier', key: 'revenueMultiplier' as const, fmt: (v: number) => `${(v*100).toFixed(0)}%` },
-                  { label: 'COGS Multiplier',    key: 'cogsMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
-                  { label: 'OPEX Multiplier',    key: 'opexMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
-                  { label: 'CapEx Multiplier',   key: 'capexMultiplier' as const,   fmt: (v: number) => `${(v*100).toFixed(0)}%` },
+                  { label: language === 'ka' ? 'შემოსავლის მულტიპლიკატორი' : 'Revenue Multiplier', key: 'revenueMultiplier' as const, fmt: (v: number) => `${(v*100).toFixed(0)}%` },
+                  { label: language === 'ka' ? 'თვითღირებულების მულტიპლიკატორი' : 'COGS Multiplier',    key: 'cogsMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
+                  { label: language === 'ka' ? 'საოპერაციო ხარჯების მულტიპლიკატორი' : 'OPEX Multiplier',    key: 'opexMultiplier' as const,    fmt: (v: number) => `${(v*100).toFixed(0)}%` },
+                  { label: language === 'ka' ? 'კაპიტალური დანახარჯების მულტიპლიკატორი' : 'CapEx Multiplier',   key: 'capexMultiplier' as const,   fmt: (v: number) => `${(v*100).toFixed(0)}%` },
                 ].map(({ label, key, fmt }) => (
                   <div key={key} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 last:border-0">
                     <span className="text-xs text-slate-500">{label}</span>
@@ -83,7 +70,7 @@ export default function ScenariosPage() {
                       <input
                         type="number" step={0.05} min={0} max={3}
                         value={sc[key]}
-                        onChange={(e) => updateScenario(type, { [key]: Number(e.target.value) })}
+                        onChange={(e) => setScenarioMultipliers(type, { [key]: Number(e.target.value) })}
                         className="w-16 text-right text-xs font-mono font-semibold text-blue-700 dark:text-blue-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
                       />
                       <span className="text-xs text-slate-300 w-3">x</span>
@@ -94,19 +81,19 @@ export default function ScenariosPage() {
                 {/* Summary */}
                 <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">5Y Revenue</span>
+                    <span className="text-slate-400">{language === 'ka' ? '5წ შემოსავალი' : '5Y Revenue'}</span>
                     <span className="font-mono font-semibold">{fmtGEL(res.rev, true)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">5Y EBITDA</span>
+                    <span className="text-slate-400">{language === 'ka' ? '5წ EBITDA' : '5Y EBITDA'}</span>
                     <span className="font-mono font-semibold">{fmtGEL(res.ebitda, true)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">5Y Net Income</span>
+                    <span className="text-slate-400">{language === 'ka' ? '5წ წმინდა მოგება' : '5Y Net Income'}</span>
                     <span className={`font-mono font-semibold ${res.ni < 0 ? 'text-red-600' : ''}`}>{fmtGEL(res.ni, true)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">End Cash</span>
+                    <span className="text-slate-400">{language === 'ka' ? 'საბოლოო ფულადი სახსრები' : 'End Cash'}</span>
                     <span className={`font-mono font-semibold ${res.cash < 0 ? 'text-red-600' : ''}`}>{fmtGEL(res.cash, true)}</span>
                   </div>
                 </div>
@@ -120,7 +107,7 @@ export default function ScenariosPage() {
                       : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  {isActive ? <span className="flex items-center justify-center gap-1.5"><CheckCircle2 size={14}/>Active</span> : 'Activate'}
+                  {isActive ? <span className="flex items-center justify-center gap-1.5"><CheckCircle2 size={14}/>{language === 'ka' ? 'აქტიური' : 'Active'}</span> : (language === 'ka' ? 'გააქტიურება' : 'Activate')}
                 </button>
               </div>
             </div>
@@ -131,24 +118,24 @@ export default function ScenariosPage() {
       {/* Comparison Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
         <div className="px-5 py-3 bg-slate-800">
-          <h3 className="text-white font-semibold text-sm">Scenario Comparison — 5-Year Total</h3>
+          <h3 className="text-white font-semibold text-sm">{language === 'ka' ? 'სცენარების შედარება — 5 წლიანი ჯამი' : 'Scenario Comparison — 5-Year Total'}</h3>
         </div>
         <table className="fm-table">
           <thead>
             <tr>
-              <th className="text-left">Metric</th>
-              <th className="text-red-400">Bear</th>
-              <th className="text-blue-400">Base</th>
-              <th className="text-emerald-400">Bull</th>
-              <th>Bull vs Bear Δ</th>
+              <th className="text-left">{language === 'ka' ? 'მეტრიკა' : 'Metric'}</th>
+              <th className="text-red-400">{language === 'ka' ? 'პესიმისტური' : 'Bear'}</th>
+              <th className="text-blue-400">{language === 'ka' ? 'ბაზისური' : 'Base'}</th>
+              <th className="text-emerald-400">{language === 'ka' ? 'ოპტიმისტური' : 'Bull'}</th>
+              <th>{language === 'ka' ? 'ოპტიმისტური vs პესიმისტური Δ' : 'Bull vs Bear Δ'}</th>
             </tr>
           </thead>
           <tbody>
             {[
-              { label: 'Revenue (ex-VAT)', bear: results[2].rev, base: results[0].rev, bull: results[1].rev },
+              { label: language === 'ka' ? 'შემოსავალი (დღგ-ს გარეშე)' : 'Revenue (ex-VAT)', bear: results[2].rev, base: results[0].rev, bull: results[1].rev },
               { label: 'EBITDA',           bear: results[2].ebitda, base: results[0].ebitda, bull: results[1].ebitda },
-              { label: 'Net Income',       bear: results[2].ni, base: results[0].ni, bull: results[1].ni },
-              { label: 'Ending Cash',      bear: results[2].cash, base: results[0].cash, bull: results[1].cash },
+              { label: language === 'ka' ? 'წმინდა მოგება' : 'Net Income',       bear: results[2].ni, base: results[0].ni, bull: results[1].ni },
+              { label: language === 'ka' ? 'საბოლოო ფულადი სახსრები' : 'Ending Cash',      bear: results[2].cash, base: results[0].cash, bull: results[1].cash },
             ].map((row) => {
               const delta = row.bear !== 0 ? ((row.bull - row.bear) / Math.abs(row.bear)) * 100 : 0
               return (

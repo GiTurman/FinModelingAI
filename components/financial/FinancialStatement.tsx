@@ -4,6 +4,8 @@ import { fmtGEL } from '@/lib/calculations'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+import { useModelStore } from '@/store/modelStore'
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -36,6 +38,7 @@ export default function FinancialStatement({
   setView,
   infoPanel
 }: FinancialStatementProps) {
+  const { language } = useModelStore()
   
   const filteredData = React.useMemo(() => {
     if (view === 'monthly') return data
@@ -67,7 +70,7 @@ export default function FinancialStatement({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">{title}</h1>
-          <p className="text-xs text-slate-400 mt-1">ფინანსური ანგარიშგება • {view}</p>
+          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? 'ფინანსური ანგარიშგება' : 'Financial Statement'} • {view === 'monthly' ? (language === 'ka' ? 'თვიური' : 'Monthly') : view === 'quarterly' ? (language === 'ka' ? 'კვარტალური' : 'Quarterly') : (language === 'ka' ? 'წლიური' : 'Annual')}</p>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
           {(['monthly', 'quarterly', 'annual'] as const).map((v) => (
@@ -81,7 +84,7 @@ export default function FinancialStatement({
                   : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
               )}
             >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
+              {v === 'monthly' ? (language === 'ka' ? 'თვიური' : 'Monthly') : v === 'quarterly' ? (language === 'ka' ? 'კვარტალური' : 'Quarterly') : (language === 'ka' ? 'წლიური' : 'Annual')}
             </button>
           ))}
         </div>
@@ -95,7 +98,7 @@ export default function FinancialStatement({
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="text-left p-3 sticky left-0 bg-slate-50 dark:bg-slate-800/50 z-10 border-b border-slate-200 dark:border-slate-800 min-w-[200px]">
-                  Line Item
+                  {language === 'ka' ? 'მუხლი' : 'Line Item'}
                 </th>
                 {filteredData.map((col, i) => (
                   <th key={i} className="text-right p-3 border-b border-slate-200 dark:border-slate-800 min-w-[100px]">

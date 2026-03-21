@@ -6,20 +6,23 @@ import { Plus, Trash2, Package, Info } from 'lucide-react'
 import { SalesItem, CogsItem } from '@/types/model'
 
 export default function CogsPage() {
-  const { salesItems, cogsItems, addCogsItem, updateCogsItem, removeCogsItem } = useModelStore()
+  const { salesItems, cogsItems, addCogsItem, updateCogsItem, removeCogsItem, language } = useModelStore()
 
   return (
     <div className="page-in space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">COGS Schedule</h1>
-          <p className="text-xs text-slate-400 mt-1">პირდაპირი ხარჯები პროდუქტების მიხედვით (Unit Cost)</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'თვითღირებულების გრაფიკი (COGS)' : 'COGS Schedule'}</h1>
+          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? 'პირდაპირი ხარჯები პროდუქტების მიხედვით (Unit Cost)' : 'Direct costs per product (Unit Cost)'}</p>
         </div>
         <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-xl border border-blue-100 dark:border-blue-800">
           <Info size={14} className="text-blue-500" />
           <p className="text-[10px] text-blue-700 dark:text-blue-300 leading-tight">
-            აქ დაამატეთ ხარჯები, რომლებიც პირდაპირ კავშირშია პროდუქტის ერთეულთან.<br/>
-            ჯამური COGS = (Unit Cost) × (Sold Units)
+            {language === 'ka' ? (
+              <>აქ დაამატეთ ხარჯები, რომლებიც პირდაპირ კავშირშია პროდუქტის ერთეულთან.<br/>ჯამური COGS = (Unit Cost) × (Sold Units)</>
+            ) : (
+              <>Add costs directly related to a single unit of product here.<br/>Total COGS = (Unit Cost) × (Sold Units)</>
+            )}
           </p>
         </div>
       </div>
@@ -39,11 +42,11 @@ export default function CogsPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-800 dark:text-white">{product.name}</h3>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Product / Service</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === 'ka' ? 'პროდუქტი / სერვისი' : 'Product / Service'}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Unit Cost</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === 'ka' ? 'ჯამური ერთეულის ხარჯი' : 'Total Unit Cost'}</p>
                   <p className="text-lg font-mono font-bold text-orange-600 dark:text-orange-400">{fmtGEL(totalUnitCost, true)}</p>
                 </div>
               </div>
@@ -57,11 +60,11 @@ export default function CogsPage() {
                         <input
                           value={cogs.name}
                           onChange={(e) => updateCogsItem(cogs.id, { name: e.target.value })}
-                          placeholder="Cost component name (e.g. Raw Material)..."
+                          placeholder={language === 'ka' ? 'ხარჯის კომპონენტის სახელი (მაგ. ნედლეული)...' : 'Cost component name (e.g. Raw Material)...'}
                           className="flex-1 text-sm bg-transparent border-b border-slate-100 dark:border-slate-800 focus:border-orange-500 outline-none py-1 transition-colors"
                         />
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">Unit Cost:</span>
+                          <span className="text-xs text-slate-400">{language === 'ka' ? 'ერთეულის ხარჯი:' : 'Unit Cost:'}</span>
                           <input
                             type="number"
                             inputMode="decimal"
@@ -80,15 +83,15 @@ export default function CogsPage() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-slate-400 italic py-2">ხარჯის კომპონენტები არ არის დამატებული</p>
+                    <p className="text-xs text-slate-400 italic py-2">{language === 'ka' ? 'ხარჯის კომპონენტები არ არის დამატებული' : 'No cost components added'}</p>
                   )}
                 </div>
 
                 <button
-                  onClick={() => addCogsItem({ salesItemId: product.id, name: 'New Cost Component', unitCost: 0 })}
+                  onClick={() => addCogsItem({ salesItemId: product.id, name: language === 'ka' ? 'ახალი ხარჯის კომპონენტი' : 'New Cost Component', unitCost: 0 })}
                   className="flex items-center gap-2 text-xs font-semibold text-orange-600 dark:text-orange-400 hover:text-orange-700 transition-colors"
                 >
-                  <Plus size={14} /> ხარჯის კომპონენტის დამატება
+                  <Plus size={14} /> {language === 'ka' ? 'ხარჯის კომპონენტის დამატება' : 'Add Cost Component'}
                 </button>
               </div>
             </div>
@@ -97,7 +100,7 @@ export default function CogsPage() {
 
         {salesItems.length === 0 && (
           <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-            <p className="text-slate-400 text-sm">ჯერ დაამატეთ პროდუქტები გაყიდვების გვერდზე</p>
+            <p className="text-slate-400 text-sm">{language === 'ka' ? 'ჯერ დაამატეთ პროდუქტები გაყიდვების გვერდზე' : 'First, add products on the Sales page'}</p>
           </div>
         )}
       </div>

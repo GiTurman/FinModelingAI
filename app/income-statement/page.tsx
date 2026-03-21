@@ -3,30 +3,19 @@
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import MonthlyTable, { TableRow } from '@/components/tables/MonthlyTable'
-import { MonthColumn, ModelStore, IncomeStatementMonth, CustomCategory } from '@/types/model'
+import { ModelStore, IncomeStatementMonth, CustomCategory, MonthColumn } from '@/types/model'
+import { buildIS } from '@/lib/calculations'
+import { generateTimeline } from '@/lib/time'
 import { Settings } from 'lucide-react'
 import Link from 'next/link'
 
 
 export default function ISPage() {
-  const getIS = useModelStore((s: ModelStore) => s.getIS)
-  const getTimeline = useModelStore((s: ModelStore) => s.getTimeline)
-  const selectedView = useModelStore((s: ModelStore) => s.selectedView)
-  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
-  const cogsItems = useModelStore((s: ModelStore) => s.cogsItems)
-  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
-  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
-  const investments = useModelStore((s: ModelStore) => s.investments)
-  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
-  const ops = useModelStore((s: ModelStore) => s.ops)
-  const config = useModelStore((s: ModelStore) => s.config)
-  const activeScenario = useModelStore((s: ModelStore) => s.scenarios.active)
-  const scenarioConfig = useModelStore((s: ModelStore) => s.scenarios[s.scenarios.active])
-  const customCategories = useModelStore((s: ModelStore) => s.customCategories)
-  const language = useModelStore((s: ModelStore) => s.language)
+  const store = useModelStore()
+  const { selectedView, salesItems, language, config, customCategories } = store
 
-  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
-  const isData = useMemo(() => getIS(), [getIS, salesItems, cogsItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const timeline = useMemo(() => generateTimeline(config.startDate, config.modelLengthMonths), [config.startDate, config.modelLengthMonths])
+  const isData = useMemo(() => buildIS(store), [store])
 
   const { cols, displayData } = useMemo(() => {
     if (selectedView === 'monthly') {
@@ -48,9 +37,9 @@ export default function ISPage() {
 
       newCols.push({
         index: i,
-        label: selectedView === 'annual' ? `Year ${year}` : `Q${quarter} Y${year}`,
-        yearLabel: `Y${year}`,
-        monthLabel: selectedView === 'annual' ? 'Total' : `Q${quarter}`
+        label: selectedView === 'annual' ? (language === 'ka' ? `წელი ${year}` : `Year ${year}`) : (language === 'ka' ? `კვ${quarter} წ${year}` : `Q${quarter} Y${year}`),
+        yearLabel: language === 'ka' ? `წ${year}` : `Y${year}`,
+        monthLabel: selectedView === 'annual' ? (language === 'ka' ? 'სულ' : 'Total') : (language === 'ka' ? `კვ${quarter}` : `Q${quarter}`)
       })
 
       const periodSum = slice.reduce((acc: any, m: IncomeStatementMonth) => {
@@ -96,20 +85,20 @@ export default function ISPage() {
     }
 
     return { cols: newCols, displayData: newData }
-  }, [selectedView, timeline, isData])
+  }, [selectedView, timeline, isData, language])
 
   const rows: TableRow[] = useMemo(() => {
     const baseRows: TableRow[] = [
-      { id: 's1', label: 'INCOME STATEMENT', values: cols.map(() => 0), type: 'section' },
-      { id: 'rev', label: 'Revenue (incl. VAT)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.revenue ?? 0), type: 'normal' },
-      { id: 'vat', label: '  VAT (18%)', values: cols.map((c: MonthColumn, i: number) => (displayData[i]?.revenue ?? 0) - (displayData[i]?.revenueExVat ?? 0)), type: 'indent', inverted: true },
-      { id: 'revex', label: 'Revenue (ex-VAT)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.revenueExVat ?? 0), type: 'subtotal' },
-      { id: 'cogs', label: '  COGS', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cogs ?? 0), type: 'indent' },
-      { id: 'gp', label: 'Gross Profit', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.grossProfit ?? 0), type: 'subtotal' },
-      { id: 'gpm', label: '  Gross Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.grossMargin ?? 0), type: 'indent', format: 'percent' },
-      { id: 's2', label: 'OPERATING EXPENSES', values: cols.map(() => 0), type: 'section' },
-      { id: 'sal', label: '  Salaries', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.salaries ?? 0), type: 'indent', inverted: true },
-      { id: 'pen', label: '  Pension (4%)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.pension ?? 0), type: 'indent', inverted: true },
+      { id: 's1', label: language === 'ka' ? 'მოგება-ზარალის უწყისი' : 'INCOME STATEMENT', values: cols.map(() => 0), type: 'section' },
+      { id: 'rev', label: language === 'ka' ? 'შემოსავალი (დღგ-ს ჩათვლით)' : 'Revenue (incl. VAT)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.revenue ?? 0), type: 'normal' },
+      { id: 'vat', label: language === 'ka' ? '  დღგ (18%)' : '  VAT (18%)', values: cols.map((c: MonthColumn, i: number) => (displayData[i]?.revenue ?? 0) - (displayData[i]?.revenueExVat ?? 0)), type: 'indent', inverted: true },
+      { id: 'revex', label: language === 'ka' ? 'შემოსავალი (დღგ-ს გარეშე)' : 'Revenue (ex-VAT)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.revenueExVat ?? 0), type: 'subtotal' },
+      { id: 'cogs', label: language === 'ka' ? '  რეალიზებული პროდუქციის თვითღირებულება' : '  COGS', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cogs ?? 0), type: 'indent' },
+      { id: 'gp', label: language === 'ka' ? 'საერთო მოგება' : 'Gross Profit', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.grossProfit ?? 0), type: 'subtotal' },
+      { id: 'gpm', label: language === 'ka' ? '  საერთო მოგების მარჟა %' : '  Gross Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.grossMargin ?? 0), type: 'indent', format: 'percent' },
+      { id: 's2', label: language === 'ka' ? 'საოპერაციო ხარჯები' : 'OPERATING EXPENSES', values: cols.map(() => 0), type: 'section' },
+      { id: 'sal', label: language === 'ka' ? '  ხელფასები' : '  Salaries', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.salaries ?? 0), type: 'indent', inverted: true },
+      { id: 'pen', label: language === 'ka' ? '  საპენსიო (4%)' : '  Pension (4%)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.pension ?? 0), type: 'indent', inverted: true },
     ]
 
     // Custom OpEx rows
@@ -125,26 +114,26 @@ export default function ISPage() {
     })
 
     baseRows.push(
-      { id: 'opx', label: '  Other OPEX', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.otherOpex ?? 0), type: 'indent', inverted: true },
-      { id: 'toopx', label: 'Total OPEX', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.totalOpex ?? 0), type: 'subtotal', inverted: true },
+      { id: 'opx', label: language === 'ka' ? '  სხვა საოპერაციო ხარჯები' : '  Other OPEX', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.otherOpex ?? 0), type: 'indent', inverted: true },
+      { id: 'toopx', label: language === 'ka' ? 'სულ საოპერაციო ხარჯები' : 'Total OPEX', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.totalOpex ?? 0), type: 'subtotal', inverted: true },
       { id: 'ebitda', label: 'EBITDA', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebitda ?? 0), type: 'subtotal' },
-      { id: 'ebitdam', label: '  EBITDA Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebitdaMargin ?? 0), type: 'indent', format: 'percent' },
-      { id: 'dep', label: '  Depreciation & Amortization', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.depreciation ?? 0), type: 'indent', inverted: true },
+      { id: 'ebitdam', label: language === 'ka' ? '  EBITDA მარჟა %' : '  EBITDA Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebitdaMargin ?? 0), type: 'indent', format: 'percent' },
+      { id: 'dep', label: language === 'ka' ? '  ცვეთა და ამორტიზაცია' : '  Depreciation & Amortization', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.depreciation ?? 0), type: 'indent', inverted: true },
       { id: 'ebit', label: 'EBIT', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebit ?? 0), type: 'subtotal' },
-      { id: 'int', label: '  Interest Expense', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.interestExpense ?? 0), type: 'indent', inverted: true },
-      { id: 'ebt', label: 'EBT (Earnings Before Tax)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebt ?? 0), type: 'subtotal' },
-      { id: 'tax', label: '  Corporate Tax (15%)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.corporateTax ?? 0), type: 'indent', inverted: true },
-      { id: 'ni', label: 'NET INCOME', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netIncome ?? 0), type: 'total' },
-      { id: 'nim', label: '  Net Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netMargin ?? 0), type: 'indent', format: 'percent' },
+      { id: 'int', label: language === 'ka' ? '  საპროცენტო ხარჯი' : '  Interest Expense', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.interestExpense ?? 0), type: 'indent', inverted: true },
+      { id: 'ebt', label: language === 'ka' ? 'EBT (მოგება დაბეგვრამდე)' : 'EBT (Earnings Before Tax)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.ebt ?? 0), type: 'subtotal' },
+      { id: 'tax', label: language === 'ka' ? '  მოგების გადასახადი (15%)' : '  Corporate Tax (15%)', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.corporateTax ?? 0), type: 'indent', inverted: true },
+      { id: 'ni', label: language === 'ka' ? 'წმინდა მოგება' : 'NET INCOME', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netIncome ?? 0), type: 'total' },
+      { id: 'nim', label: language === 'ka' ? '  წმინდა მარჟა %' : '  Net Margin %', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netMargin ?? 0), type: 'indent', format: 'percent' },
     )
 
     return baseRows
-  }, [cols, displayData, customCategories])
+  }, [cols, displayData, customCategories, language])
 
   if (salesItems.length === 0) {
     return (
       <div className="page-in flex items-center justify-center min-h-[50vh] text-slate-400 text-sm">
-        Sales-ში გაყიდვები დაამატეთ IS-ის სანახავად
+        {language === 'ka' ? 'Sales-ში გაყიდვები დაამატეთ IS-ის სანახავად' : 'Add sales in the Sales tab to view the Income Statement'}
       </div>
     )
   }
@@ -153,8 +142,8 @@ export default function ISPage() {
     <div className="page-in space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Income Statement</h1>
-          <p className="text-xs text-slate-400 mt-1">მოგება-ზარალის ანგარიშგება • {timeline.length} თვე • {selectedView}</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'მოგება-ზარალის უწყისი' : 'Income Statement'}</h1>
+          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? `მოგება-ზარალის ანგარიშგება • ${timeline.length} თვე • ${selectedView}` : `Income Statement • ${timeline.length} months • ${selectedView}`}</p>
         </div>
         <Link
           href="/line-items"

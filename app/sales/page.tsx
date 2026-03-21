@@ -1,18 +1,18 @@
 'use client'
 // app/sales/page.tsx
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { SalesItem } from '@/types/model'
-import { TimePeriod } from '@/lib/time'
+import { TimePeriod, generateTimeline } from '@/lib/time'
 import { fmtGEL, sumArr } from '@/lib/calculations'
 import { Plus, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 const MONTHS = 60
 
-function newItem(): Omit<SalesItem, 'id'> {
+function newItem(language: string): Omit<SalesItem, 'id'> {
   return {
-    name: 'New Product',
+    name: language === 'ka' ? 'ახალი პროდუქტი' : 'New Product',
     category: 'General',
     unitPrice: 100,
     monthlyUnits: Array(MONTHS).fill(0),
@@ -21,8 +21,9 @@ function newItem(): Omit<SalesItem, 'id'> {
 }
 
 export default function SalesPage() {
-  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, getTimeline, taxRates, language } = useModelStore()
-  const timeline = getTimeline()
+  const store = useModelStore()
+  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, taxRates, language, config } = store
+  const timeline = useMemo(() => generateTimeline(config.startDate, config.modelLengthMonths), [config.startDate, config.modelLengthMonths])
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showMonthly, setShowMonthly] = useState<string | null>(null)
 
@@ -52,8 +53,8 @@ export default function SalesPage() {
     <div className="page-in space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Sales Schedule</h1>
-          <p className="text-xs text-slate-400 mt-1">გაყიდვების გეგმა — 60 თვე • VAT {(taxRates.vatRate * 100).toFixed(0)}%</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'გაყიდვები' : 'Sales Schedule'}</h1>
+          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? 'გაყიდვების გეგმა — 60 თვე' : 'Sales Plan — 60 months'} • VAT {(taxRates.vatRate * 100).toFixed(0)}%</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -63,7 +64,7 @@ export default function SalesPage() {
             <Settings size={15} /> {language === 'ka' ? 'მუხლების მართვა' : 'Manage Line Items'}
           </Link>
           <button
-            onClick={() => addSalesItem(newItem())}
+            onClick={() => addSalesItem(newItem(language))}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
             <Plus size={15} /> {language === 'ka' ? 'პროდუქტის დამატება' : 'Add Product'}
@@ -73,9 +74,9 @@ export default function SalesPage() {
 
       {salesItems.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-          <p className="text-slate-400 text-sm mb-4">გაყიდვების სტრიქონი არ არის</p>
-          <button onClick={() => addSalesItem(newItem())} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
-            <Plus size={15} /> პირველი პროდუქტის დამატება
+          <p className="text-slate-400 text-sm mb-4">{language === 'ka' ? 'გაყიდვების სტრიქონი არ არის' : 'No sales items'}</p>
+          <button onClick={() => addSalesItem(newItem(language))} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+            <Plus size={15} /> {language === 'ka' ? 'პირველი პროდუქტის დამატება' : 'Add First Product'}
           </button>
         </div>
       )}
@@ -103,7 +104,7 @@ export default function SalesPage() {
 
                 {/* Unit price */}
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-slate-400">ფასი:</span>
+                  <span className="text-xs text-slate-400">{language === 'ka' ? 'ფასი:' : 'Price:'}</span>
                   <input
                     type="number" min={0} step={1}
                     inputMode="decimal"
@@ -123,12 +124,12 @@ export default function SalesPage() {
                     onChange={(e) => updateSalesItem(item.id, { vatIncluded: e.target.checked })}
                     className="accent-blue-600"
                   />
-                  VAT incl.
+                  {language === 'ka' ? 'დღგ ჩათვლით' : 'VAT incl.'}
                 </label>
 
                 {/* Summary */}
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs text-slate-400">{totalUnits.toLocaleString()} units</p>
+                  <p className="text-xs text-slate-400">{totalUnits.toLocaleString()} {language === 'ka' ? 'ერთეული' : 'units'}</p>
                   <p className="text-sm font-mono font-semibold text-slate-800 dark:text-white">{fmtGEL(totalRev, true)}</p>
                 </div>
 
@@ -143,9 +144,9 @@ export default function SalesPage() {
                   {/* Quick fill */}
                   <div className="flex flex-wrap gap-3">
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Uniform fill:</span>
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{language === 'ka' ? 'ერთგვაროვანი შევსება:' : 'Uniform fill:'}</span>
                       <input
-                        type="number" min={0} placeholder="units/mo"
+                        type="number" min={0} placeholder={language === 'ka' ? 'ერთეული/თვე' : 'units/mo'}
                         className="w-24 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 outline-none focus:ring-1 focus:ring-blue-500"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') fillUniform(item.id, Number((e.target as HTMLInputElement).value))
@@ -157,14 +158,14 @@ export default function SalesPage() {
                           fillUniform(item.id, Number(inp?.value ?? 0))
                         }}
                         className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700"
-                      >Apply</button>
+                      >{language === 'ka' ? 'გამოყენება' : 'Apply'}</button>
                     </div>
 
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Growth fill:</span>
-                      <input id={`start-${item.id}`} type="number" min={0} placeholder="start" className="w-20 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 outline-none" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{language === 'ka' ? 'ზრდით შევსება:' : 'Growth fill:'}</span>
+                      <input id={`start-${item.id}`} type="number" min={0} placeholder={language === 'ka' ? 'საწყისი' : 'start'} className="w-20 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 outline-none" />
                       <span className="text-xs text-slate-400">+</span>
-                      <input id={`growth-${item.id}`} type="number" placeholder="% mo" className="w-16 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 outline-none" />
+                      <input id={`growth-${item.id}`} type="number" placeholder={language === 'ka' ? '% თვე' : '% mo'} className="w-16 text-sm font-mono border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 outline-none" />
                       <button
                         onClick={() => {
                           const s = Number((document.getElementById(`start-${item.id}`) as HTMLInputElement)?.value ?? 0)
@@ -172,14 +173,14 @@ export default function SalesPage() {
                           fillGrowth(item.id, s, g)
                         }}
                         className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-emerald-700"
-                      >Apply</button>
+                      >{language === 'ka' ? 'გამოყენება' : 'Apply'}</button>
                     </div>
                   </div>
 
                   {/* Monthly units grid */}
                   <div>
                     <button onClick={() => toggleMonthly(item.id)} className="text-xs text-blue-600 font-semibold mb-2 hover:underline">
-                      {showMonthly === item.id ? '▲ Hide' : '▼ Show'} monthly units table
+                      {showMonthly === item.id ? (language === 'ka' ? '▲ დამალვა' : '▲ Hide') : (language === 'ka' ? '▼ ჩვენება' : '▼ Show')} {language === 'ka' ? 'თვიური ერთეულების ცხრილი' : 'monthly units table'}
                     </button>
                     {showMonthly === item.id && (
                       <div className="overflow-x-auto">
@@ -220,8 +221,8 @@ export default function SalesPage() {
                       const rev = units * item.unitPrice
                       return (
                         <div key={yr} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center">
-                          <p className="text-xs text-slate-400 mb-1">Y{yr}</p>
-                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{units.toLocaleString()} u</p>
+                          <p className="text-xs text-slate-400 mb-1">{language === 'ka' ? `წ${yr}` : `Y${yr}`}</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{units.toLocaleString()} {language === 'ka' ? 'ე' : 'u'}</p>
                           <p className="text-xs font-mono text-blue-700 dark:text-blue-400">{fmtGEL(rev, true)}</p>
                         </div>
                       )
@@ -237,7 +238,7 @@ export default function SalesPage() {
       {/* Total */}
       {salesItems.length > 0 && (
         <div className="bg-slate-800 text-white rounded-xl p-4 flex items-center justify-between">
-          <span className="font-semibold">Total Revenue (60M, incl. VAT)</span>
+          <span className="font-semibold">{language === 'ka' ? 'ჯამური შემოსავალი (60თ, დღგ-ს ჩათვლით)' : 'Total Revenue (60M, incl. VAT)'}</span>
           <span className="font-mono font-bold text-xl">
             {fmtGEL(sumArr(salesItems.map((item: SalesItem) => sumArr(item.monthlyUnits) * item.unitPrice)), true)}
           </span>

@@ -4,13 +4,13 @@ import { useModelStore } from '@/store/modelStore'
 import { Percent, Activity, Globe } from 'lucide-react'
 
 export default function TaxOtherPage() {
-  const { taxRates, setTaxRates, ops, setOps } = useModelStore()
+  const { taxRates, setTaxRates, ops, setOps, language } = useModelStore()
 
   return (
     <div className="page-in max-w-3xl space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Tax & Operational Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">საგადასახადო განაკვეთები და საოპერაციო პარამეტრები</p>
+        <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'საგადასახადო და საოპერაციო პარამეტრები' : 'Tax & Operational Settings'}</h1>
+        <p className="text-sm text-slate-500 mt-1">{language === 'ka' ? 'საგადასახადო განაკვეთები და საოპერაციო პარამეტრები' : 'Tax rates and operational parameters'}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -18,15 +18,15 @@ export default function TaxOtherPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-slate-800 dark:text-white font-semibold">
             <Percent size={18} className="text-blue-600" />
-            <h3>Tax Rates (%)</h3>
+            <h3>{language === 'ka' ? 'საგადასახადო განაკვეთები (%)' : 'Tax Rates (%)'}</h3>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4">
             {[
-              { label: 'VAT (დღგ)', key: 'vatRate' as const },
-              { label: 'Corporate Tax (მოგების გადასახადი)', key: 'corporateTaxRate' as const },
-              { label: 'Personal Income Tax (საშემოსავლო)', key: 'personalIncomeTaxRate' as const },
-              { label: 'Pension Contribution (საპენსიო)', key: 'pensionRate' as const },
-              { label: 'Dividend Tax (დივიდენდი)', key: 'dividendTaxRate' as const },
+              { label: language === 'ka' ? 'დღგ' : 'VAT', key: 'vatRate' as const },
+              { label: language === 'ka' ? 'მოგების გადასახადი' : 'Corporate Tax', key: 'corporateTaxRate' as const },
+              { label: language === 'ka' ? 'საშემოსავლო გადასახადი' : 'Personal Income Tax', key: 'personalIncomeTaxRate' as const },
+              { label: language === 'ka' ? 'საპენსიო შენატანი' : 'Pension Contribution', key: 'pensionRate' as const },
+              { label: language === 'ka' ? 'დივიდენდის გადასახადი' : 'Dividend Tax', key: 'dividendTaxRate' as const },
             ].map(t => (
               <div key={t.key} className="flex items-center justify-between">
                 <span className="text-xs text-slate-500">{t.label}</span>
@@ -47,7 +47,7 @@ export default function TaxOtherPage() {
             ))}
           </div>
           <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-[10px] text-slate-400 leading-relaxed">
-            * საქართველოში მოქმედებს &quot;ესტონური მოდელი&quot; — მოგების გადასახადი (15%) იხდება მხოლოდ დივიდენდის განაწილებისას.
+            {language === 'ka' ? '* საქართველოში მოქმედებს "ესტონური მოდელი" — მოგების გადასახადი (15%) იხდება მხოლოდ დივიდენდის განაწილებისას.' : '* Georgia uses the "Estonian Model" — Corporate Tax (15%) is paid only upon dividend distribution.'}
           </div>
         </div>
 
@@ -55,14 +55,14 @@ export default function TaxOtherPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-slate-800 dark:text-white font-semibold">
             <Activity size={18} className="text-purple-600" />
-            <h3>Operational Settings</h3>
+            <h3>{language === 'ka' ? 'საოპერაციო პარამეტრები' : 'Operational Settings'}</h3>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4">
             {[
-              { label: 'DSO (Days Sales Outstanding)', key: 'dso' as const, unit: 'days' },
-              { label: 'DPO (Days Payable Outstanding)', key: 'dpo' as const, unit: 'days' },
-              { label: 'Inflation Rate (Annual %)', key: 'inflationRate' as const, unit: '%' },
-              { label: 'Default Loan Rate (Annual %)', key: 'defaultLoanRate' as const, unit: '%' },
+              { label: language === 'ka' ? 'DSO (დებიტორული დავალიანების დაფარვის დღეები)' : 'DSO (Days Sales Outstanding)', key: 'dso' as const, unit: language === 'ka' ? 'დღე' : 'days' },
+              { label: language === 'ka' ? 'DPO (კრედიტორული დავალიანების დაფარვის დღეები)' : 'DPO (Days Payable Outstanding)', key: 'dpo' as const, unit: language === 'ka' ? 'დღე' : 'days' },
+              { label: language === 'ka' ? 'ინფლაციის დონე (წლიური %)' : 'Inflation Rate (Annual %)', key: 'inflationRate' as const, unit: '%' },
+              { label: language === 'ka' ? 'სესხის საპროცენტო განაკვეთი (წლიური %)' : 'Default Loan Rate (Annual %)', key: 'defaultLoanRate' as const, unit: '%' },
             ].map(o => (
               <div key={o.key} className="flex items-center justify-between">
                 <span className="text-xs text-slate-500">{o.label}</span>
@@ -85,7 +85,7 @@ export default function TaxOtherPage() {
 
           <div className="flex items-center gap-2 text-slate-800 dark:text-white font-semibold pt-2">
             <Globe size={18} className="text-emerald-600" />
-            <h3>FX Rates (1 Foreign = X GEL)</h3>
+            <h3>{language === 'ka' ? 'ვალუტის კურსები (1 უცხოური = X GEL)' : 'FX Rates (1 Foreign = X GEL)'}</h3>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4">
             {[

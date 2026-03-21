@@ -3,28 +3,22 @@
 import { useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import MonthlyTable, { TableRow } from '@/components/tables/MonthlyTable'
-import { MonthColumn, ModelStore, CashFlowMonth } from '@/types/model'
+import { ModelStore, CashFlowMonth, MonthColumn } from '@/types/model'
+import { buildIS, buildCF } from '@/lib/calculations'
+import { generateTimeline } from '@/lib/time'
 import { Settings } from 'lucide-react'
 import Link from 'next/link'
 
 
 export default function CFPage() {
-  const getCF = useModelStore((s: ModelStore) => s.getCF)
-  const getTimeline = useModelStore((s: ModelStore) => s.getTimeline)
-  const selectedView = useModelStore((s: ModelStore) => s.selectedView)
-  const salesItems = useModelStore((s: ModelStore) => s.salesItems)
-  const opexItems = useModelStore((s: ModelStore) => s.opexItems)
-  const capexItems = useModelStore((s: ModelStore) => s.capexItems)
-  const investments = useModelStore((s: ModelStore) => s.investments)
-  const taxRates = useModelStore((s: ModelStore) => s.taxRates)
-  const ops = useModelStore((s: ModelStore) => s.ops)
-  const config = useModelStore((s: ModelStore) => s.config)
-  const activeScenario = useModelStore((s: ModelStore) => s.scenarios.active)
-  const scenarioConfig = useModelStore((s: ModelStore) => s.scenarios[s.scenarios.active])
-  const language = useModelStore((s: ModelStore) => s.language)
+  const store = useModelStore()
+  const { selectedView, salesItems, language, config } = store
 
-  const timeline = useMemo(() => getTimeline(), [getTimeline, config])
-  const cfData = useMemo(() => getCF(), [getCF, salesItems, opexItems, capexItems, investments, taxRates, ops, config, activeScenario, scenarioConfig])
+  const timeline = useMemo(() => generateTimeline(config.startDate, config.modelLengthMonths), [config.startDate, config.modelLengthMonths])
+  const cfData = useMemo(() => {
+    const isData = buildIS(store)
+    return buildCF(store, isData)
+  }, [store])
 
   const { cols, displayData } = useMemo(() => {
     if (selectedView === 'monthly') {
@@ -46,9 +40,9 @@ export default function CFPage() {
 
       newCols.push({
         index: i,
-        label: selectedView === 'annual' ? `Year ${year}` : `Q${quarter} Y${year}`,
-        yearLabel: `Y${year}`,
-        monthLabel: selectedView === 'annual' ? 'Total' : `Q${quarter}`
+        label: selectedView === 'annual' ? (language === 'ka' ? `წელი ${year}` : `Year ${year}`) : (language === 'ka' ? `კვ${quarter} წ${year}` : `Q${quarter} Y${year}`),
+        yearLabel: language === 'ka' ? `წ${year}` : `Y${year}`,
+        monthLabel: selectedView === 'annual' ? (language === 'ka' ? 'სულ' : 'Total') : (language === 'ka' ? `კვ${quarter}` : `Q${quarter}`)
       })
 
       const periodSum = slice.reduce((acc: any, m: CashFlowMonth) => ({
@@ -79,39 +73,39 @@ export default function CFPage() {
     }
 
     return { cols: newCols, displayData: newData }
-  }, [selectedView, timeline, cfData])
+  }, [selectedView, timeline, cfData, language])
 
   const rows: TableRow[] = useMemo(() => [
-    { id: 's1', label: 'CASH FLOW FROM OPERATIONS', values: cols.map(() => 0), type: 'section' },
-    { id: 'ni', label: 'Net Income', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netIncome ?? 0), type: 'normal' },
-    { id: 'dep', label: '  + Depreciation', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.depreciation ?? 0), type: 'indent' },
-    { id: 'wc', label: '  Δ Working Capital', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.changeInWC ?? 0), type: 'indent' },
-    { id: 'oc', label: 'Cash from Operations', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromOps ?? 0), type: 'subtotal' },
-    { id: 's2', label: 'CASH FLOW FROM INVESTING', values: cols.map(() => 0), type: 'section' },
-    { id: 'cap', label: '  - CapEx', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.capexOutflow ?? 0), type: 'indent', inverted: true },
-    { id: 'ci', label: 'Cash from Investing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromInv ?? 0), type: 'subtotal' },
-    { id: 's3', label: 'CASH FLOW FROM FINANCING', values: cols.map(() => 0), type: 'section' },
-    { id: 'eq', label: '  + Equity Injections', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.equityIn ?? 0), type: 'indent' },
-    { id: 'ln', label: '  + Loan Drawdowns', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanIn ?? 0), type: 'indent' },
-    { id: 'lp', label: '  - Loan Repayments', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanOut ?? 0), type: 'indent', inverted: true },
-    { id: 'cf', label: 'Cash from Financing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromFin ?? 0), type: 'subtotal' },
-    { id: 'fcf', label: 'FREE CASH FLOW', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.freeCashFlow ?? 0), type: 'total' },
-    { id: 's4', label: 'CASH BALANCE', values: cols.map(() => 0), type: 'section' },
-    { id: 'op', label: 'Opening Cash', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.openingCash ?? 0), type: 'normal' },
-    { id: 'nc', label: 'Net Cash Change', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netCashChange ?? 0), type: 'normal' },
-    { id: 'cl', label: 'CLOSING CASH', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.closingCash ?? 0), type: 'total' },
-  ], [cols, displayData])
+    { id: 's1', label: language === 'ka' ? 'საოპერაციო ფულადი ნაკადები' : 'CASH FLOW FROM OPERATIONS', values: cols.map(() => 0), type: 'section' },
+    { id: 'ni', label: language === 'ka' ? 'წმინდა მოგება' : 'Net Income', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netIncome ?? 0), type: 'normal' },
+    { id: 'dep', label: language === 'ka' ? '  + ცვეთა' : '  + Depreciation', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.depreciation ?? 0), type: 'indent' },
+    { id: 'wc', label: language === 'ka' ? '  Δ საბრუნავი კაპიტალი' : '  Δ Working Capital', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.changeInWC ?? 0), type: 'indent' },
+    { id: 'oc', label: language === 'ka' ? 'ფულადი ნაკადები ოპერაციებიდან' : 'Cash from Operations', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromOps ?? 0), type: 'subtotal' },
+    { id: 's2', label: language === 'ka' ? 'საინვესტიციო ფულადი ნაკადები' : 'CASH FLOW FROM INVESTING', values: cols.map(() => 0), type: 'section' },
+    { id: 'cap', label: language === 'ka' ? '  - კაპიტალური დანახარჯები (CapEx)' : '  - CapEx', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.capexOutflow ?? 0), type: 'indent', inverted: true },
+    { id: 'ci', label: language === 'ka' ? 'ფულადი ნაკადები ინვესტიციებიდან' : 'Cash from Investing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromInv ?? 0), type: 'subtotal' },
+    { id: 's3', label: language === 'ka' ? 'საფინანსო ფულადი ნაკადები' : 'CASH FLOW FROM FINANCING', values: cols.map(() => 0), type: 'section' },
+    { id: 'eq', label: language === 'ka' ? '  + კაპიტალის ინექციები' : '  + Equity Injections', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.equityIn ?? 0), type: 'indent' },
+    { id: 'ln', label: language === 'ka' ? '  + სესხის აღება' : '  + Loan Drawdowns', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanIn ?? 0), type: 'indent' },
+    { id: 'lp', label: language === 'ka' ? '  - სესხის დაფარვა' : '  - Loan Repayments', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.loanOut ?? 0), type: 'indent', inverted: true },
+    { id: 'cf', label: language === 'ka' ? 'ფულადი ნაკადები დაფინანსებიდან' : 'Cash from Financing', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.cashFromFin ?? 0), type: 'subtotal' },
+    { id: 'fcf', label: language === 'ka' ? 'თავისუფალი ფულადი ნაკადები' : 'FREE CASH FLOW', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.freeCashFlow ?? 0), type: 'total' },
+    { id: 's4', label: language === 'ka' ? 'ფულადი სახსრების ბალანსი' : 'CASH BALANCE', values: cols.map(() => 0), type: 'section' },
+    { id: 'op', label: language === 'ka' ? 'საწყისი ფულადი სახსრები' : 'Opening Cash', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.openingCash ?? 0), type: 'normal' },
+    { id: 'nc', label: language === 'ka' ? 'წმინდა ფულადი სახსრების ცვლილება' : 'Net Cash Change', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.netCashChange ?? 0), type: 'normal' },
+    { id: 'cl', label: language === 'ka' ? 'საბოლოო ფულადი სახსრები' : 'CLOSING CASH', values: cols.map((c: MonthColumn, i: number) => displayData[i]?.closingCash ?? 0), type: 'total' },
+  ], [cols, displayData, language])
 
   if (salesItems.length === 0) {
-    return <div className="page-in flex items-center justify-center min-h-[50vh] text-slate-400 text-sm">Sales-ში გაყიდვები დაამატეთ</div>
+    return <div className="page-in flex items-center justify-center min-h-[50vh] text-slate-400 text-sm">{language === 'ka' ? 'Sales-ში გაყიდვები დაამატეთ CF-ის სანახავად' : 'Add sales in the Sales page to view CF'}</div>
   }
 
   return (
     <div className="page-in space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Cash Flow Statement</h1>
-          <p className="text-xs text-slate-400 mt-1">ფულადი ნაკადების ანგარიშგება • {selectedView}</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'ფულადი ნაკადების ანგარიშგება' : 'Cash Flow Statement'}</h1>
+          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? `ფულადი ნაკადები • ${selectedView}` : `Cash Flow • ${selectedView}`}</p>
         </div>
         <Link
           href="/line-items"

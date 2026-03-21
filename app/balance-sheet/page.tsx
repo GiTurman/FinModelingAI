@@ -4,9 +4,8 @@ import React, { useState, useMemo } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { buildIS, buildCF, buildBS } from '@/lib/calculations'
 import { generateTimeline } from '@/lib/time'
-import { CapexItem } from '@/types/model'
 import FinancialStatement from '@/components/financial/FinancialStatement'
-import { AlertTriangle } from 'lucide-react'
+import { CapexItem } from '@/types/model'
 
 export default function BalanceSheetPage() {
   const store = useModelStore()
@@ -26,16 +25,15 @@ export default function BalanceSheetPage() {
     return timeline.map((t, i) => {
       const is = isData[i]
       const cf = cfData[i]
-      const bs = bsData[i]
 
       // Assets
-      const cash = bs.cash
-      const accountsReceivable = bs.accountsReceivable
+      const cash = cf.closingCash
+      const accountsReceivable = is.revenueExVat * (store.ops.dso / 30)
       const inventory = 0 // Placeholder
       const currentAssets = cash + accountsReceivable + inventory
 
-      const capexItemsData = capexItems
-      const netPPE = capexItemsData.reduce((sum: number, item: CapexItem) => {
+      // Real PP&E from CapEx schedule with accumulated depreciation
+      const netPPE = capexItems.reduce((sum: number, item) => {
         if (i < item.monthIndex) return sum
         const monthsDepreciated = i - item.monthIndex + 1
         const depreciable = item.amount - (item.residualValue ?? 0)
@@ -46,21 +44,48 @@ export default function BalanceSheetPage() {
       const totalAssets = currentAssets + netPPE
 
       // Liabilities
-      const accountsPayable = bs.accountsPayable
+      const accountsPayable = (is.cogs + is.totalOpex) * (store.ops.dpo / 30)
       const currentLiabilities = accountsPayable // + current portion of LTD
-      const longTermDebt = bs.longTermDebt
+
+      let longTermDebt = 0
+      store.investments.forEach(inv => {
+        if (inv.type !== 'Loan') return
+        if (i < inv.monthIndex) return
+
+        const r = inv.interestRate / 100 / 12
+        const n = inv.termMonths
+        const mElapsed = i - inv.monthIndex + 1
+
+        if (mElapsed > n) return // Loan paid off
+
+        if (r === 0) {
+          longTermDebt += inv.amount * (1 - mElapsed / n)
+          return
+        }
+
+        const balance = inv.amount
+          * (Math.pow(1 + r, n) - Math.pow(1 + r, mElapsed))
+          / (Math.pow(1 + r, n) - 1)
+        longTermDebt += balance
+      })
+
       const totalLiabilities = currentLiabilities + longTermDebt
 
       // Equity
-      const paidInCapital = bs.paidInCapital
-      const retainedEarnings = bs.retainedEarnings
+      let paidInCapital = 0
+      for (let j = 0; j <= i; j++) {
+        paidInCapital += cfData[j].equityIn
+      }
+
+      let retainedEarnings = 0
+      for (let j = 0; j <= i; j++) {
+        retainedEarnings += isData[j].netIncome
+      }
+
       const totalEquity = paidInCapital + retainedEarnings
 
       const totalLiabilitiesEquity = totalLiabilities + totalEquity
       const check = totalAssets - totalLiabilitiesEquity
-
-      const hasCapexData = capexItems.length > 0
-      const bsIsComplete = hasCapexData
 
       return {
         ...t,
@@ -79,10 +104,9 @@ export default function BalanceSheetPage() {
         totalEquity,
         totalLiabilitiesEquity,
         check,
-        bsIsComplete,
       }
     })
-  }, [timeline, isData, cfData, bsData, capexItems])
+  }, [timeline, isData, cfData, store.ops.dso, store.ops.dpo, store.investments, capexItems])
 
   const rows = [
     { key: 'cash', label: 'Cash & Equivalents', bold: false, indent: 1 },
@@ -105,35 +129,6 @@ export default function BalanceSheetPage() {
     { key: 'check', label: 'Balance Check', bold: true, indent: 0, isCheck: true },
   ]
 
-  const lastMonth = data[data.length - 1]
-  const isBalanced = lastMonth && Math.abs(lastMonth.check) < 1
-  const isComplete = lastMonth && lastMonth.bsIsComplete
-
-  const balanceStatus = () => {
-    if (!isComplete) {
-      return (
-        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm">
-          <AlertTriangle size={16} />
-          <span>Model Incomplete: Some schedules are not yet fully integrated. Balance sheet may not balance.</span>
-        </div>
-      )
-    }
-    if (isBalanced) {
-      return (
-        <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2 text-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span>Assets = Liabilities + Equity. The balance sheet is balanced.</span>
-        </div>
-      )
-    }
-    return (
-      <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        <span>Balance sheet is NOT balanced. Check input schedules for errors.</span>
-      </div>
-    )
-  }
-
   return (
     <FinancialStatement
       title="Balance Sheet"
@@ -141,7 +136,6 @@ export default function BalanceSheetPage() {
       rows={rows}
       view={view}
       setView={setView}
-      infoPanel={balanceStatus()}
     />
   )
 }

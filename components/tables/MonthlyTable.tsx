@@ -4,6 +4,8 @@ import { fmtGEL } from '@/lib/calculations'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+import { useModelStore } from '@/store/modelStore'
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -23,6 +25,7 @@ interface MonthlyTableProps {
 }
 
 export default function MonthlyTable({ columns, rows }: MonthlyTableProps) {
+  const { language } = useModelStore()
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -30,7 +33,7 @@ export default function MonthlyTable({ columns, rows }: MonthlyTableProps) {
           <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
             <tr>
               <th className="text-left p-3 sticky left-0 bg-slate-50 dark:bg-slate-800/50 z-10 border-b border-slate-200 dark:border-slate-800 min-w-[200px]">
-                Line Item
+                {language === 'ka' ? 'მუხლი' : 'Line Item'}
               </th>
               {columns.map((col) => (
                 <th key={col.index} className="text-right p-3 border-b border-slate-200 dark:border-slate-800 min-w-[100px]">

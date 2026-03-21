@@ -4,13 +4,13 @@ import { useModelStore } from '@/store/modelStore'
 import { Settings, MapPin, Calendar, DollarSign } from 'lucide-react'
 
 export default function InputPage() {
-  const { config, setConfig } = useModelStore()
+  const { config, setConfig, language } = useModelStore()
 
   return (
     <div className="page-in max-w-2xl space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Input</h1>
-        <p className="text-sm text-slate-500 mt-1">მოდელის ძირითადი პარამეტრები — Excel-ის &quot;Input&quot; sheet-ის ანალოგი</p>
+        <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'ინპუტი' : 'Input'}</h1>
+        <p className="text-sm text-slate-500 mt-1">{language === 'ka' ? 'მოდელის ძირითადი პარამეტრები — Excel-ის "Input" sheet-ის ანალოგი' : 'Core model parameters — analogous to the Excel "Input" sheet'}</p>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/50 divide-y divide-slate-100 dark:divide-slate-800">
@@ -20,7 +20,7 @@ export default function InputPage() {
             <Calendar size={16} className="text-blue-600" />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Starting Date</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{language === 'ka' ? 'დასაწყისი თარიღი' : 'Starting Date'}</label>
             <input
               type="date"
               value={config.startDate}
@@ -28,7 +28,7 @@ export default function InputPage() {
               className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
-          <p className="text-xs text-slate-400 w-24">Starting Date of the 60-month model</p>
+          <p className="text-xs text-slate-400 w-24">{language === 'ka' ? '60-თვიანი მოდელის დასაწყისი' : 'Starting Date of the 60-month model'}</p>
         </div>
 
         {/* Model Length */}
@@ -37,7 +37,7 @@ export default function InputPage() {
             <Settings size={16} className="text-purple-600" />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Model Length</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{language === 'ka' ? 'მოდელის ხანგრძლივობა' : 'Model Length'}</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -47,10 +47,10 @@ export default function InputPage() {
                 min={12} max={120}
                 className="w-28 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 focus:ring-2 focus:ring-blue-500 outline-none"
               />
-              <span className="text-sm text-slate-500">months</span>
+              <span className="text-sm text-slate-500">{language === 'ka' ? 'თვე' : 'months'}</span>
             </div>
           </div>
-          <p className="text-xs text-slate-400 w-24">Default: 60 months (5 years)</p>
+          <p className="text-xs text-slate-400 w-24">{language === 'ka' ? 'ნაგულისხმევი: 60 თვე (5 წელი)' : 'Default: 60 months (5 years)'}</p>
         </div>
 
         {/* Territory */}
@@ -59,7 +59,7 @@ export default function InputPage() {
             <MapPin size={16} className="text-emerald-600" />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Territory</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{language === 'ka' ? 'ტერიტორია' : 'Territory'}</label>
             <input
               type="text"
               value={config.territory}
@@ -67,7 +67,7 @@ export default function InputPage() {
               className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
-          <p className="text-xs text-slate-400 w-24">Location affects tax rules</p>
+          <p className="text-xs text-slate-400 w-24">{language === 'ka' ? 'ლოკაცია მოქმედებს საგადასახადო წესებზე' : 'Location affects tax rules'}</p>
         </div>
 
         {/* Currency */}
@@ -76,7 +76,7 @@ export default function InputPage() {
             <DollarSign size={16} className="text-amber-600" />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Operating Currency</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{language === 'ka' ? 'საოპერაციო ვალუტა' : 'Operating Currency'}</label>
             <select
               value={config.currency}
               onChange={(e) => setConfig({ currency: e.target.value })}
@@ -87,26 +87,26 @@ export default function InputPage() {
               ))}
             </select>
           </div>
-          <p className="text-xs text-slate-400 w-24">All outputs in this currency</p>
+          <p className="text-xs text-slate-400 w-24">{language === 'ka' ? 'ყველა შედეგი ამ ვალუტაშია' : 'All outputs in this currency'}</p>
         </div>
       </div>
 
       {/* Model summary */}
       <div className="bg-slate-800 rounded-xl p-5 text-white">
-        <h3 className="text-sm font-semibold mb-3 text-slate-300">მოდელის რეზიუმე</h3>
+        <h3 className="text-sm font-semibold mb-3 text-slate-300">{language === 'ka' ? 'მოდელის რეზიუმე' : 'Model Summary'}</h3>
         <div className="grid grid-cols-2 gap-3 text-sm font-mono">
-          <div><span className="text-slate-400">Start:</span> <span className="text-blue-300">{config.startDate}</span></div>
-          <div><span className="text-slate-400">Length:</span> <span className="text-blue-300">{config.modelLengthMonths} months</span></div>
-          <div><span className="text-slate-400">Territory:</span> <span className="text-blue-300">{config.territory}</span></div>
-          <div><span className="text-slate-400">Currency:</span> <span className="text-blue-300">{config.currency}</span></div>
+          <div><span className="text-slate-400">{language === 'ka' ? 'დასაწყისი' : 'Start'}:</span> <span className="text-blue-300">{config.startDate}</span></div>
+          <div><span className="text-slate-400">{language === 'ka' ? 'ხანგრძლივობა' : 'Length'}:</span> <span className="text-blue-300">{config.modelLengthMonths} {language === 'ka' ? 'თვე' : 'months'}</span></div>
+          <div><span className="text-slate-400">{language === 'ka' ? 'ტერიტორია' : 'Territory'}:</span> <span className="text-blue-300">{config.territory}</span></div>
+          <div><span className="text-slate-400">{language === 'ka' ? 'ვალუტა' : 'Currency'}:</span> <span className="text-blue-300">{config.currency}</span></div>
         </div>
       </div>
 
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
         <p className="text-xs text-blue-700 dark:text-blue-300">
-          <strong>🔵 ლურჯი</strong> = Input (hardcoded) &nbsp;|&nbsp;
-          <strong>⚫ შავი</strong> = ფორმულა &nbsp;|&nbsp;
-          <strong>🟢 მწვანე</strong> = სხვა შიტიდან ლინკი
+          <strong>🔵 {language === 'ka' ? 'ლურჯი' : 'Blue'}</strong> = Input (hardcoded) &nbsp;|&nbsp;
+          <strong>⚫ {language === 'ka' ? 'შავი' : 'Black'}</strong> = {language === 'ka' ? 'ფორმულა' : 'Formula'} &nbsp;|&nbsp;
+          <strong>🟢 {language === 'ka' ? 'მწვანე' : 'Green'}</strong> = {language === 'ka' ? 'სხვა შიტიდან ლინკი' : 'Link from another sheet'}
         </p>
       </div>
     </div>
