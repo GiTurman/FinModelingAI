@@ -1,10 +1,34 @@
 'use client'
 // app/input/page.tsx
+import React, { useState, useEffect } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { Settings, MapPin, Calendar, DollarSign } from 'lucide-react'
 
 export default function InputPage() {
   const { config, setConfig, language } = useModelStore()
+  const [localLength, setLocalLength] = useState(config.modelLengthMonths.toString())
+
+  useEffect(() => {
+    setLocalLength(config.modelLengthMonths.toString())
+  }, [config.modelLengthMonths])
+
+  const handleLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setLocalLength(val)
+    
+    const num = parseInt(val)
+    if (!isNaN(num) && num >= 1 && num <= 240) {
+      setConfig({ modelLengthMonths: num })
+    }
+  }
+
+  const handleBlur = () => {
+    let num = parseInt(localLength)
+    if (isNaN(num) || num < 12) num = 12
+    if (num > 120) num = 120
+    setLocalLength(num.toString())
+    setConfig({ modelLengthMonths: num })
+  }
 
   return (
     <div className="page-in max-w-2xl space-y-6">
@@ -42,9 +66,9 @@ export default function InputPage() {
               <input
                 type="number"
                 inputMode="numeric"
-                value={config.modelLengthMonths}
-                onChange={(e) => setConfig({ modelLengthMonths: Math.max(12, Math.min(120, Number(e.target.value))) })}
-                min={12} max={120}
+                value={localLength}
+                onChange={handleLengthChange}
+                onBlur={handleBlur}
                 className="w-28 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <span className="text-sm text-slate-500">{language === 'ka' ? 'თვე' : 'months'}</span>
