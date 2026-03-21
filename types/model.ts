@@ -39,6 +39,7 @@ export interface SalesItem {
 export interface DividendDeclaration {
   id: string
   year: number
+  monthIndex: number
   amount: number
   description: string
 }

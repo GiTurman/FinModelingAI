@@ -133,6 +133,7 @@ export default function InvestmentsPage() {
             <button
               onClick={() => addDividendDeclaration({
                 year: 1,
+                monthIndex: 11,
                 amount: 0,
                 description: 'Annual dividend'
               })}
