@@ -143,7 +143,12 @@ export default function ISPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'მოგება-ზარალის უწყისი' : 'Income Statement'}</h1>
-          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? `მოგება-ზარალის ანგარიშგება • ${timeline.length} თვე • ${selectedView}` : `Income Statement • ${timeline.length} months • ${selectedView}`}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {language === 'ka' ? `მოგება-ზარალის ანგარიშგება • ${timeline.length} თვე • ${selectedView}` : `Income Statement • ${timeline.length} months • ${selectedView}`}
+            <span className={`ml-2 font-bold ${store.scenarios.active === 'bull' ? 'text-emerald-500' : store.scenarios.active === 'bear' ? 'text-red-500' : 'text-blue-500'}`}>
+              • {language === 'ka' ? (store.scenarios.active === 'base' ? 'ბაზისური სცენარი' : store.scenarios.active === 'bull' ? 'ოპტიმისტური სცენარი' : 'პესიმისტური სცენარი') : `${store.scenarios.active.toUpperCase()} Scenario`}
+            </span>
+          </p>
         </div>
         <Link
           href="/line-items"

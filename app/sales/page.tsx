@@ -22,7 +22,8 @@ function newItem(language: string): Omit<SalesItem, 'id'> {
 
 export default function SalesPage() {
   const store = useModelStore()
-  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, taxRates, language, config } = store
+  const { salesItems, addSalesItem, updateSalesItem, removeSalesItem, taxRates, language, config, scenarios, setActiveScenario } = store
+  const activeScenario = scenarios[scenarios.active]
   const timeline = useMemo(() => generateTimeline(config.startDate, config.modelLengthMonths), [config.startDate, config.modelLengthMonths])
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showMonthly, setShowMonthly] = useState<string | null>(null)
@@ -54,7 +55,12 @@ export default function SalesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">{language === 'ka' ? 'გაყიდვები' : 'Sales Schedule'}</h1>
-          <p className="text-xs text-slate-400 mt-1">{language === 'ka' ? 'გაყიდვების გეგმა — 60 თვე' : 'Sales Plan — 60 months'} • VAT {(taxRates.vatRate * 100).toFixed(0)}%</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {language === 'ka' ? 'გაყიდვების გეგმა — 60 თვე' : 'Sales Plan — 60 months'} • VAT {(taxRates.vatRate * 100).toFixed(0)}%
+            <span className={`ml-2 font-bold ${scenarios.active === 'bull' ? 'text-emerald-500' : scenarios.active === 'bear' ? 'text-red-500' : 'text-blue-500'}`}>
+              • {language === 'ka' ? (scenarios.active === 'base' ? 'ბაზისური სცენარი' : scenarios.active === 'bull' ? 'ოპტიმისტური სცენარი' : 'პესიმისტური სცენარი') : `${scenarios.active.toUpperCase()} Scenario`}
+            </span>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -83,8 +89,14 @@ export default function SalesPage() {
 
       <div className="space-y-3">
         {salesItems.map((item: SalesItem) => {
-          const totalRev = sumArr(item.monthlyUnits) * item.unitPrice
           const totalUnits = sumArr(item.monthlyUnits)
+          const totalRevBase = totalUnits * item.unitPrice
+          const totalRevScenario = totalRevBase * activeScenario.revenueMultiplier
+          
+          const netPrice = item.vatIncluded ? item.unitPrice / (1 + taxRates.vatRate) : item.unitPrice
+          const vatAmount = item.vatIncluded ? item.unitPrice - netPrice : item.unitPrice * taxRates.vatRate
+          const grossPrice = item.vatIncluded ? item.unitPrice : item.unitPrice + vatAmount
+
           const isExp = expanded === item.id
 
           return (
@@ -103,17 +115,26 @@ export default function SalesPage() {
                 />
 
                 {/* Unit price */}
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-slate-400">{language === 'ka' ? 'ფასი:' : 'Price:'}</span>
-                  <input
-                    type="number" min={0} step={1}
-                    inputMode="decimal"
-                    value={item.unitPrice}
-                    onChange={(e) => updateSalesItem(item.id, { unitPrice: Number(e.target.value) })}
-                    onFocus={(e) => e.target.select()}
-                    className="w-24 text-right text-sm font-mono text-blue-700 dark:text-blue-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-slate-400">₾</span>
+                <div className="flex flex-col items-end gap-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-slate-400">{language === 'ka' ? 'ფასი:' : 'Price:'}</span>
+                    <input
+                      type="number" min={0} step={1}
+                      inputMode="decimal"
+                      value={item.unitPrice}
+                      onChange={(e) => updateSalesItem(item.id, { unitPrice: Number(e.target.value) })}
+                      onFocus={(e) => e.target.select()}
+                      className="w-24 text-right text-sm font-mono text-blue-700 dark:text-blue-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-slate-400">₾</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {item.vatIncluded ? (
+                      <span>{language === 'ka' ? 'დღგ-ს გარეშე:' : 'Ex-VAT:'} {fmtGEL(netPrice)}</span>
+                    ) : (
+                      <span>{language === 'ka' ? 'დღგ-ს ჩათვლით:' : 'Incl-VAT:'} {fmtGEL(grossPrice)}</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* VAT toggle */}
@@ -130,7 +151,12 @@ export default function SalesPage() {
                 {/* Summary */}
                 <div className="text-right hidden sm:block">
                   <p className="text-xs text-slate-400">{totalUnits.toLocaleString()} {language === 'ka' ? 'ერთეული' : 'units'}</p>
-                  <p className="text-sm font-mono font-semibold text-slate-800 dark:text-white">{fmtGEL(totalRev, true)}</p>
+                  <p className="text-sm font-mono font-semibold text-slate-800 dark:text-white">
+                    {fmtGEL(totalRevScenario, true)}
+                    {activeScenario.revenueMultiplier !== 1 && (
+                      <span className="text-[10px] text-blue-500 ml-1">({(activeScenario.revenueMultiplier * 100).toFixed(0)}%)</span>
+                    )}
+                  </p>
                 </div>
 
                 <button onClick={() => removeSalesItem(item.id)} className="text-red-400 hover:text-red-600 p-1 ml-1">
