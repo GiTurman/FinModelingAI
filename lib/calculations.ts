@@ -50,14 +50,20 @@ export function buildIS(store: ModelStore, scenarioOverride?: 'base' | 'bull' | 
     // 1. Revenue
     let revenue = 0
     let revenueExVat = 0
+    let vatAccrued = 0
     salesItems.forEach(item => {
       const units = (item.monthlyUnits[i] || 0) * activeScenario.revenueMultiplier
       const amount = units * item.unitPrice
-      revenue += amount
       if (item.vatIncluded) {
-        revenueExVat += amount / (1 + taxRates.vatRate)
+        const net = amount / (1 + taxRates.vatRate)
+        revenue += amount
+        revenueExVat += net
+        vatAccrued += (amount - net)
       } else {
+        const gross = amount * (1 + taxRates.vatRate)
+        revenue += gross
         revenueExVat += amount
+        vatAccrued += (gross - amount)
       }
     })
 
@@ -123,8 +129,14 @@ export function buildIS(store: ModelStore, scenarioOverride?: 'base' | 'bull' | 
 
     const ebt = ebit - interestExpense
     
-    // 6. Tax (Estonian Model - simplified for IS)
-    const corporateTax = 0 
+    // 6. Tax (Estonian Model)
+    // მოგების გადასახადი (15%) დათვალე მხოლოდ დივიდენდის გაცემისას (Dividend Payout / 0.85 * 0.15)
+    let corporateTax = 0
+    store.dividendDeclarations.forEach(div => {
+      if (div.monthIndex === i) {
+        corporateTax += (div.amount / 0.85) * 0.15
+      }
+    })
 
     const netIncome = ebt - corporateTax
     const netMargin = revenueExVat > 0 ? netIncome / revenueExVat : 0
@@ -133,6 +145,7 @@ export function buildIS(store: ModelStore, scenarioOverride?: 'base' | 'bull' | 
       ...period,
       revenue,
       revenueExVat,
+      vatAccrued,
       cogs,
       grossProfit,
       grossMargin,
@@ -163,10 +176,29 @@ export function buildBS(store: ModelStore, isData?: IncomeStatementMonth[], cfDa
 
   return timeline.map((period, i) => {
     const monthIS = is[i]
-    cumulativeRetainedEarnings += monthIS.netIncome
+    let dividend = 0
+    store.dividendDeclarations.forEach(div => {
+      if (div.monthIndex === i) {
+        dividend += div.amount
+      }
+    })
+    cumulativeRetainedEarnings += (monthIS.netIncome - dividend)
 
-    const accountsReceivable = monthIS.revenue * (ops.dso / 30)
+    const accountsReceivable = (monthIS.revenueExVat + monthIS.vatAccrued) * (ops.dso / 30)
     
+    const prevVatPayable = i > 0 ? (is[i-1].vatAccrued) : 0 // Simplified: assume 1 month lag for payable
+    // Actually, let's use a more consistent approach for vatPayable
+    // VAT Payable = Prev + Accrued - Paid
+    // For buildBS, let's assume VAT is paid in the following month.
+    let vatPayable = 0
+    if (i === 0) {
+      vatPayable = monthIS.vatAccrued
+    } else {
+      // This is tricky without a stateful loop, but buildBS is a map.
+      // Let's approximate: vatPayable is usually the last month's accrued VAT if paid monthly.
+      vatPayable = monthIS.vatAccrued
+    }
+
     let netPPE = 0
     capexItems.forEach(item => {
       if (i >= item.monthIndex) {
@@ -204,6 +236,7 @@ export function buildBS(store: ModelStore, isData?: IncomeStatementMonth[], cfDa
       ...period,
       cash,
       accountsReceivable,
+      vatPayable,
       inventory: 0,
       currentAssets: cash + accountsReceivable,
       netPPE,
@@ -229,16 +262,23 @@ export function buildCF(store: ModelStore, isData?: IncomeStatementMonth[], scen
   let prevCash = 0
   let prevAR = 0
   let prevAP = 0
+  let prevVatPayable = 0
 
   return timeline.map((period, i) => {
     const monthIS = is[i]
     
-    const accountsReceivable = monthIS.revenue * (ops.dso / 30)
+    const grossRevenue = monthIS.revenueExVat + monthIS.vatAccrued
+    const accountsReceivable = grossRevenue * (ops.dso / 30)
     const accountsPayable = monthIS.totalOpex * (ops.dpo / 30)
+    
+    const vatAccrued = monthIS.vatAccrued
+    const vatPaid = i > 0 ? is[i-1].vatAccrued : 0
+    const currentVatPayable = prevVatPayable + vatAccrued - vatPaid
 
     const changeInAR = accountsReceivable - prevAR
     const changeInAP = accountsPayable - prevAP
-    const changeInWC = changeInAP - changeInAR
+    const changeInVatPayable = currentVatPayable - prevVatPayable
+    const changeInWC = changeInAP + changeInVatPayable - changeInAR
 
     const cashFromOps = monthIS.netIncome + monthIS.depreciation + changeInWC
 
@@ -262,7 +302,14 @@ export function buildCF(store: ModelStore, isData?: IncomeStatementMonth[], scen
       }
     })
 
-    const cashFromFin = equityIn + loanIn - loanOut
+    let dividendsPaid = 0
+    store.dividendDeclarations.forEach(div => {
+      if (div.monthIndex === i) {
+        dividendsPaid += div.amount
+      }
+    })
+
+    const cashFromFin = equityIn + loanIn - loanOut - vatPaid - dividendsPaid
     const netCashChange = cashFromOps - capexOutflow + cashFromFin
     const closingCash = prevCash + netCashChange
 
@@ -278,6 +325,8 @@ export function buildCF(store: ModelStore, isData?: IncomeStatementMonth[], scen
       equityIn,
       loanIn,
       loanOut,
+      vatPaid,
+      dividendsPaid,
       cashFromFin,
       netCashChange,
       closingCash,
@@ -287,9 +336,13 @@ export function buildCF(store: ModelStore, isData?: IncomeStatementMonth[], scen
     prevCash = closingCash
     prevAR = accountsReceivable
     prevAP = accountsPayable
+    prevVatPayable = currentVatPayable
     return res
   })
 }
+
+// დავამატოთ დღგ-ს განაკვეთი როგორც კონსტანტა
+const VAT_RATE = 0.18;
 
 /**
  * მთავარი ფუნქცია, რომელიც აწარმოებს 60-თვიან ფინანსურ მოდელირებას.
@@ -315,20 +368,37 @@ export function calculateModel(
     // 1. P&L-ის გამოთვლა (Accrual Basis)
 
     // Revenue & COGS
-    let monthlyRevenue = 0;
+    let monthlyRevenueForPnl = 0;
+    let monthlyVatAccrued = 0;
     let monthlyCogs = 0;
 
     for (const sale of inputs.sales) {
       const seasonalityFactor = sale.seasonality[month % 12] || 1;
       const units = sale.monthlyBaseUnits * Math.pow(1 + sale.growthRate, month) * seasonalityFactor;
       
-      monthlyRevenue += units * sale.unitPrice;
+      let unitPriceForPnl = sale.unitPrice;
+      let grossUnitPrice = sale.unitPrice;
+
+      if (sale.isVatInclusive) {
+        // ფორმულა: ფასი დღგ-ს გარეშე = საბოლოო ფასი / (1 + დღგ-ს განაკვეთი)
+        unitPriceForPnl = sale.unitPrice / (1 + VAT_RATE);
+      } else {
+        // თუ ფასი არ შეიცავს დღგ-ს, მაშინ მთლიანი ფასი მომხმარებლისთვის იქნება დღგ-ს დამატებით
+        grossUnitPrice = sale.unitPrice * (1 + VAT_RATE);
+      }
+
+      const revenueForProduct = units * unitPriceForPnl;
+      const grossRevenueForProduct = units * grossUnitPrice;
+      
+      monthlyRevenueForPnl += revenueForProduct;
+      monthlyVatAccrued += (grossRevenueForProduct - revenueForProduct);
       monthlyCogs += units * sale.unitCost;
     }
 
-    pnl.revenue[month] = monthlyRevenue;
+    pnl.revenue[month] = monthlyRevenueForPnl;
+    pnl.vatAccrued[month] = monthlyVatAccrued;
     pnl.cogs[month] = monthlyCogs;
-    pnl.grossProfit[month] = monthlyRevenue - monthlyCogs;
+    pnl.grossProfit[month] = monthlyRevenueForPnl - monthlyCogs;
 
     // Operating Expenses (OPEX)
     let monthlyOpex = 0;
@@ -337,7 +407,7 @@ export function calculateModel(
         if (opex.category === 'fixed') {
           monthlyOpex += opex.amount;
         } else {
-          monthlyOpex += (opex.amount / 100) * monthlyRevenue;
+          monthlyOpex += (opex.amount / 100) * monthlyRevenueForPnl;
         }
       }
     }
@@ -378,15 +448,27 @@ export function calculateModel(
     
     balanceSheet.propertyPlantEquipment[month] = grossPPE[month] - accumulatedDepreciation[month];
 
-    balanceSheet.accountsReceivable[month] = (monthlyRevenue / 30) * inputs.global.accountsReceivableDays;
+    // Accounts Receivable (Gross revenue based)
+    const monthlyGrossRevenue = monthlyRevenueForPnl + monthlyVatAccrued;
+    balanceSheet.accountsReceivable[month] = (monthlyGrossRevenue / 30) * inputs.global.accountsReceivableDays;
     balanceSheet.accountsPayable[month] = (monthlyCogs / 30) * inputs.global.accountsPayableDays;
+
+    // VAT Payable logic
+    const prevVatPayable = month > 0 ? balanceSheet.vatPayable[month - 1] : 0;
+    const vatPaidThisMonth = month > 0 ? pnl.vatAccrued[month - 1] : 0; 
+    balanceSheet.vatPayable[month] = prevVatPayable + monthlyVatAccrued - vatPaidThisMonth;
 
     const prevAR = month > 0 ? balanceSheet.accountsReceivable[month - 1] : 0;
     const prevAP = month > 0 ? balanceSheet.accountsPayable[month - 1] : 0;
     
     const deltaAR = balanceSheet.accountsReceivable[month] - prevAR;
     const deltaAP = balanceSheet.accountsPayable[month] - prevAP;
-    cashFlow.changeInWorkingCapital[month] = deltaAR - deltaAP;
+    const changeInVatPayable = balanceSheet.vatPayable[month] - prevVatPayable;
+
+    // WC change: Assets increase = outflow (+), Liabilities increase = inflow (-)
+    // So deltaAR (Asset) is positive, deltaAP (Liability) is positive
+    // WC_change = deltaAR - deltaAP - changeInVatPayable
+    cashFlow.changeInWorkingCapital[month] = deltaAR - deltaAP - changeInVatPayable;
 
     cashFlow.netIncome[month] = pnl.netIncome[month];
     cashFlow.depreciation[month] = pnl.depreciation[month];
@@ -401,7 +483,8 @@ export function calculateModel(
 
     cashFlow.dividendsPaid[month] = -dividend;
     cashFlow.incomeTaxPaid[month] = -monthlyIncomeTax;
-    cashFlow.cashFromFinancing[month] = cashFlow.dividendsPaid[month] + cashFlow.incomeTaxPaid[month];
+    cashFlow.vatPaid[month] = -vatPaidThisMonth;
+    cashFlow.cashFromFinancing[month] = cashFlow.dividendsPaid[month] + cashFlow.incomeTaxPaid[month] + cashFlow.vatPaid[month];
 
     cashFlow.netCashFlow[month] = 
       cashFlow.cashFromOperations[month] + 
@@ -414,11 +497,11 @@ export function calculateModel(
 
     balanceSheet.cash[month] = cashFlow.endingCash[month];
 
-    balanceSheet.totalLiabilities[month] = balanceSheet.accountsPayable[month];
+    balanceSheet.totalLiabilities[month] = balanceSheet.accountsPayable[month] + balanceSheet.vatPayable[month];
     balanceSheet.shareCapital[month] = month === 0 ? 0 : balanceSheet.shareCapital[month - 1]; 
     
     const prevRE = month === 0 ? 0 : balanceSheet.retainedEarnings[month - 1];
-    balanceSheet.retainedEarnings[month] = prevRE + pnl.netIncome[month];
+    balanceSheet.retainedEarnings[month] = prevRE + pnl.netIncome[month] - dividend;
     balanceSheet.totalEquity[month] = balanceSheet.shareCapital[month] + balanceSheet.retainedEarnings[month];
 
     balanceSheet.totalAssets[month] = 
@@ -443,6 +526,7 @@ export function calculateModel(
 function initializePnl(months: number): FinancialResults['pnl'] {
   return {
     revenue: new Array(months).fill(0),
+    vatAccrued: new Array(months).fill(0),
     cogs: new Array(months).fill(0),
     grossProfit: new Array(months).fill(0),
     operatingExpenses: new Array(months).fill(0),
@@ -459,6 +543,7 @@ function initializeBalanceSheet(months: number): FinancialResults['balanceSheet'
   return {
     cash: new Array(months).fill(0),
     accountsReceivable: new Array(months).fill(0),
+    vatPayable: new Array(months).fill(0),
     propertyPlantEquipment: new Array(months).fill(0),
     totalAssets: new Array(months).fill(0),
     accountsPayable: new Array(months).fill(0),
@@ -480,6 +565,7 @@ function initializeCashFlow(months: number): FinancialResults['cashFlow'] {
     cashFromInvesting: new Array(months).fill(0),
     dividendsPaid: new Array(months).fill(0),
     incomeTaxPaid: new Array(months).fill(0),
+    vatPaid: new Array(months).fill(0),
     cashFromFinancing: new Array(months).fill(0),
     netCashFlow: new Array(months).fill(0),
     beginningCash: new Array(months).fill(0),

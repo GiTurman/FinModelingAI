@@ -106,6 +106,9 @@ export const useModelStore = create<ModelStore>()(
       removeDividendDeclaration: (id) => set((state) => ({
         dividendDeclarations: state.dividendDeclarations.filter((i) => i.id !== id)
       })),
+      updateDividendDeclaration: (id, item) => set((state) => ({
+        dividendDeclarations: state.dividendDeclarations.map((i) => (i.id === id ? { ...i, ...item } : i))
+      })),
 
       addCustomCategory: (item) => set((state) => ({ customCategories: [...state.customCategories, { ...item, id: Math.random().toString(36).substr(2, 9) }] })),
       updateCustomCategory: (id, item) => set((state) => ({

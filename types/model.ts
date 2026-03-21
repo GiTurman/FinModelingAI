@@ -139,6 +139,7 @@ export interface ModelStore {
   removeInvestment: (id: string) => void
   dividendDeclarations: DividendDeclaration[]
   addDividendDeclaration: (item: Omit<DividendDeclaration, 'id'>) => void
+  updateDividendDeclaration: (id: string, item: Partial<DividendDeclaration>) => void
   removeDividendDeclaration: (id: string) => void
 
   addCustomCategory: (item: Omit<CustomCategory, 'id'>) => void
@@ -157,6 +158,7 @@ export interface ModelStore {
 export interface IncomeStatementMonth extends TimePeriod {
   revenue: number
   revenueExVat: number
+  vatAccrued: number
   cogs: number
   grossProfit: number
   grossMargin: number
@@ -187,6 +189,8 @@ export interface CashFlowMonth extends TimePeriod {
   equityIn: number
   loanIn: number
   loanOut: number
+  vatPaid: number
+  dividendsPaid: number
   cashFromFin: number
   netCashChange: number
   closingCash: number
@@ -196,6 +200,7 @@ export interface CashFlowMonth extends TimePeriod {
 export interface BalanceSheetMonth extends TimePeriod {
   cash: number
   accountsReceivable: number
+  vatPayable: number
   inventory: number // Placeholder
   currentAssets: number
   netPPE: number

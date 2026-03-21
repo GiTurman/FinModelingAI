@@ -15,7 +15,8 @@ export interface GlobalInputs {
 export interface SalesInput {
   id: string;
   productName: string;
-  unitPrice: number; // ერთეულის გასაყიდი ფასი
+  unitPrice: number; // ერთეულის გასაყიდი ფასი (როგორც მომხმარებელს შეჰყავს)
+  isVatInclusive: boolean; // true, თუ unitPrice შეიცავს დღგ-ს
   unitCost: number; // ერთეულის თვითღირებულება (COGS)
   monthlyBaseUnits: number; // გაყიდვების საბაზისო რაოდენობა თვეში
   growthRate: number; // ყოველთვიური ზრდის ტემპი (მაგ: 0.05 = 5%)
@@ -62,6 +63,7 @@ export type MonthlyValues = number[];
 
 export interface ProfitAndLoss {
   revenue: MonthlyValues;
+  vatAccrued: MonthlyValues; // დარიცხული დღგ
   cogs: MonthlyValues;
   grossProfit: MonthlyValues;
   operatingExpenses: MonthlyValues;
@@ -76,6 +78,7 @@ export interface ProfitAndLoss {
 export interface BalanceSheet {
   cash: MonthlyValues;
   accountsReceivable: MonthlyValues;
+  vatPayable: MonthlyValues; // გადასახდელი დღგ
   propertyPlantEquipment: MonthlyValues; // Net of accumulated depreciation
   totalAssets: MonthlyValues;
   accountsPayable: MonthlyValues;
@@ -95,6 +98,7 @@ export interface CashFlowStatement {
   cashFromInvesting: MonthlyValues;
   dividendsPaid: MonthlyValues;
   incomeTaxPaid: MonthlyValues; // ფულადი გადახდა
+  vatPaid: MonthlyValues; // გადახდილი დღგ
   cashFromFinancing: MonthlyValues;
   netCashFlow: MonthlyValues;
   beginningCash: MonthlyValues;

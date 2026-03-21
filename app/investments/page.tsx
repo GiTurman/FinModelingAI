@@ -9,7 +9,7 @@ import { Plus, Trash2 } from 'lucide-react'
 
 export default function InvestmentsPage() {
   const { investments, addInvestment, updateInvestment, removeInvestment, ops, config } = useModelStore()
-  const { dividendDeclarations, addDividendDeclaration, removeDividendDeclaration } = useModelStore()
+  const { dividendDeclarations, addDividendDeclaration, updateDividendDeclaration, removeDividendDeclaration } = useModelStore()
   const timeline = generateTimeline(config.startDate, config.modelLengthMonths)
 
   function newInvestment(): Omit<InvestmentItem, 'id'> {
@@ -164,18 +164,17 @@ export default function InvestmentsPage() {
                 </thead>
                 <tbody>
                   {dividendDeclarations.map((decl) => {
-                    const cit = decl.amount * 0.15
-                    const withholding = (decl.amount - cit) * 0.05
-                    const net = decl.amount - cit - withholding
+                    // Estonian Model: Tax = (Dividend / 0.85) * 0.15
+                    const cit = (decl.amount / 0.85) * 0.15
+                    const withholding = decl.amount * 0.05 // 5% withholding on the payout
+                    const net = decl.amount - withholding
                     return (
                       <tr key={decl.id}>
                         <td className="text-left">
                           <input
                             value={decl.description}
                             onChange={(e) => {
-                              const updated = dividendDeclarations.map(d =>
-                                d.id === decl.id ? { ...d, description: e.target.value } : d
-                              )
+                              updateDividendDeclaration(decl.id, { description: e.target.value })
                             }}
                             className="bg-transparent outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 w-full text-sm"
                           />
@@ -185,6 +184,7 @@ export default function InvestmentsPage() {
                             value={decl.year}
                             onChange={(e) => {
                               const year = Number(e.target.value)
+                              updateDividendDeclaration(decl.id, { year, monthIndex: (year - 1) * 12 + 11 })
                             }}
                             className="bg-transparent outline-none text-xs"
                           >
@@ -195,7 +195,9 @@ export default function InvestmentsPage() {
                           <input
                             type="number" value={decl.amount}
                             inputMode="decimal"
-                            onChange={(e) => {}}
+                            onChange={(e) => {
+                              updateDividendDeclaration(decl.id, { amount: Number(e.target.value) })
+                            }}
                             onFocus={(e) => e.target.select()}
                             className="bg-transparent text-right outline-none w-24 font-mono focus:ring-1 ring-blue-500 rounded"
                           />
